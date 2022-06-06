@@ -19,6 +19,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::post('webhooks/' . env('TELEGRAM_WEBHOOK_URL'), [TelegramController::class, 'process']);
 Route::get('webhooks/' . env('TELEGRAM_WEBHOOK_URL'), [TelegramController::class, 'process']);
 
 Route::get('setWebhook/' . env('TELEGRAM_WEBHOOK_URL'), [WebhooksController::class, 'setWebhook']);

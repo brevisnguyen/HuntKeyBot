@@ -11,26 +11,18 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class Deposit
- *
+ * 
  * @property int $id
  * @property int $user_id
- * @property int $chat_id
+ * @property int $shift_id
  * @property float $amount
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property Chat $chat
+ * 
+ * @property Shift $shift
  * @property User $user
+ *
  * @package App\Models
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit query()
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereAmount($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereChatId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereUpdatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereUserId($value)
- * @mixin \Eloquent
  */
 class Deposit extends Model
 {
@@ -38,19 +30,19 @@ class Deposit extends Model
 
 	protected $casts = [
 		'user_id' => 'int',
-		'chat_id' => 'int',
+		'shift_id' => 'int',
 		'amount' => 'float'
 	];
 
 	protected $fillable = [
 		'user_id',
-		'chat_id',
+		'shift_id',
 		'amount'
 	];
 
-	public function chat()
+	public function shift()
 	{
-		return $this->belongsTo(Chat::class);
+		return $this->belongsTo(Shift::class);
 	}
 
 	public function user()

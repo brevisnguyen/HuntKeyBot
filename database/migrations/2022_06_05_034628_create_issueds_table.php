@@ -16,12 +16,13 @@ class CreateIssuedsTable extends Migration
         Schema::create('issueds', function (Blueprint $table) {
             $table->id();
             $table->bigInteger('user_id');
-            $table->bigInteger('chat_id');
+            $table->bigInteger('shift_id')->unsigned();
             $table->float('amount', 8, 2);
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onUpdate('cascade')->onDelete('cascade');
-            $table->foreign('chat_id')->references('id')->on('chats')->onUpdate('cascade')->onDelete('cascade');
+            $table->foreign('shift_id')->references('id')->on('shifts')->onUpdate('cascade')->onDelete('cascade');
+            $table->index('shift_id');
         });
     }
 

@@ -14,7 +14,7 @@ use Telegram;
 
 class TelegramController extends Controller
 {
-    protected $is_start = false;
+    protected $is_shift_start = false;
     protected $current_chat_id = 0;
 
     protected $admin_method = ['start', 'stop', 'clear', 'grant', 'revoke', 'deposit', 'issued'];
@@ -48,7 +48,6 @@ class TelegramController extends Controller
         // dd($update);
         // Only allowed text message
         if ( $message->objectType() === 'text' ) {
-
             $user = $message->from;
             $chat = $message->chat;
             $text = $message->text;
@@ -58,18 +57,32 @@ class TelegramController extends Controller
                 // $this->run($trigger, $text, $entities);
                 $isMatch = preg_match($trigger, $text, $matches);
                 if ( $isMatch == 1) {
-                    $this->setUser($user);
-                    $this->setChat($chat);
+                    // $this->setUser($user);
+                    // $this->setChat($chat);
                     
                     switch ($key) {
                         case 'start':
+                            $this->start($user->id, $chat->id);
+                            break;
+                        case 'stop':
+                            $this->stop($user->id, $chat->id);
+                            break;
+                        case 'grant':
+                            $this->grant($user->id, $chat->id, $matches['user_name']);
+                            break;
+                        case 'revoke':
+                            $this->revoke($user->id, $chat->id, $matches['user_name']);
+                            break;
+                        case 'deposit':
+                            $this->deposit($user, $chat->id, $matches['deposit_amount']);
+                            break;
+                        case 'issued':
+                            // $this->issued();
+                            break;
+                        default:
                             # code...
                             break;
-                            
-                            default:
-                            # code...
-                            break;
-                        }
+                    }
                         
                 } elseif ( $isMatch === false ) {
                 // Send Error To Bot's Boss
@@ -92,8 +105,8 @@ class TelegramController extends Controller
                     $this->setChat($new_chat);
                     // Store Admin
                     $this->setUser($admin);
-                    // Store Shift
-                    $this->setShift($new_chat, $admin);
+                    // Store Shift and Set Admin
+                    $this->setShift($new_chat, $admin, false, true, false);
                 }
             }
         } elseif ( $message->objectType() === 'left_chat_member' ) {
@@ -116,78 +129,174 @@ class TelegramController extends Controller
      * 
      * Set User To Admin Who Added Bot
      */
-    public function setShift($chat, $admin)
+    public function setShift($chat, $user, $is_end = false, $is_admin = false, $is_operator = false)
     {
         $shift = Shift::create([
             'chat_id' => $chat->id,
-            'user_id' => $admin->id,
-            'is_end' => false,
-            'is_admin' => true,
-            'is_operator' => false,
+            'usename' => $user->username,
+            'is_end' => $is_end,
+            'is_admin' => $is_admin,
+            'is_operator' => $is_operator,
         ]);
 
-        $key_1 = 'telegram_shift_' . $chat->id . '_admin_id';
-        $key_2 = 'telegram_shift_' . $chat->id . '_isEnd';
-        Cache::forever($key_1, $admin->id);
-        Cache::forever($key_2, $shift->is_end);
+        $key = 'telegram_shift_' . $chat->id;
+        Cache::forever($key, $shift);
     }
 
     /**
      * Start Recording Transaction For This Day
+     * @param int $user_id
+     * @param int $chat_id
      */
-    public function start($user_id)
+    public function start($user_id, $chat_id)
     {
         if ( in_array('start', $this->getAllowedMethod($user_id)) ) {
-            $key = 'telegram_start_recording';
-            if ( Cache::has($key) ) {
-                // Started
+            $key = 'telegram_start_recording_for_' . $chat_id;
+            if ( (Cache::has($key) && Cache::get($key) == false) || Cache::has($key) == false) {
+                // Sent Starting Message
                 $params = [
-                    'chat_id'   => '',
-                    'text'      => '',
+                    'chat_id'   => $chat_id,
+                    'text'      => 'Bắt đầu ghi chép hoạt động.',
                 ];
+                $response = Telegram::bot()->sendMessage($params);
 
-            } else {
                 Cache::put($key, true, now()->addHours(24));
+
+            } elseif ( Cache::has($key) && Cache::get($key) == true ) {
+                $params = [
+                    'chat_id'   => $chat_id,
+                    'text'      => 'Hoạt động ghi đã được bật, không cần bật lại.',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
             }
+        } else {
+            // Sent Reject Message
+            $params = [
+                'chat_id'   => $chat_id,
+                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+            ];
+            $response = Telegram::bot()->sendMessage($params);
+        }
+    }
+
+    /**
+     * Stop Recording Transaction For This Day
+     */
+    public function stop($user_id, $chat_id)
+    {
+        if ( in_array('stop', $this->getAllowedMethod($user_id)) ) {
+            $key = 'telegram_start_recording_for_' . $chat_id;
+            if ( Cache::has($key) && Cache::get($key) == true ) {
+                Cache::forever($key, false);
+
+            } elseif ( (Cache::has($key) && Cache::get($key) == false) || Cache::has($key) != false ) {
+                $params = [
+                    'chat_id'   => $chat_id,
+                    'text'      => 'Hoạt động ghi cần được bật nếu muốn dừng.',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
+            }
+        } else {
+            // Sent Reject Message
+            $params = [
+                'chat_id'   => $chat_id,
+                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+            ];
+            $response = Telegram::bot()->sendMessage($params);
+        }
+    }
+
+    /**
+     * Grant deposit/issued right to user
+     */
+    public function grant($admin_id, $chat_id, $username)
+    {
+        if ( in_array('grant', $this->getAllowedMethod($admin_id)) ) {
+
+            $shift = Shift::create([
+                'chat_id'       => $chat_id,
+                'username'      => $username,
+                'is_end'        => false,
+                'is_admin'      => false,
+                'is_operator'   => true,
+            ]);
+            $this->setAllowedMethod($username, 'operator');
+            $params = [
+                'chat_id'       => $chat_id,
+                'text'          => 'Thêm quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . ' . Thành công!',
+                'parse_mode'    => 'HTML',
+            ];
+            $response = Telegram::bot()->sendMessage($params);
+
+        } else {
+            // Sent Reject Message
+            $params = [
+                'chat_id'   => $chat_id,
+                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+            ];
+            $response = Telegram::bot()->sendMessage($params);
+        }
+    }
+
+    /**
+     * Revoke user right
+     */
+    public function revoke($admin_id, $chat_id, $username)
+    {
+        if ( in_array('grant', $this->getAllowedMethod($admin_id)) ) {
+
+            $this->setAllowedMethod($username);
+            $params = [
+                'chat_id'       => $chat_id,
+                'text'          => 'Xoá quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . ' . Thành công!',
+                'parse_mode'    => 'HTML',
+            ];
+            $response = Telegram::bot()->sendMessage($params);
+
+        } else {
+            // Sent Reject Message
+            $params = [
+                'chat_id'   => $chat_id,
+                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+            ];
+            $response = Telegram::bot()->sendMessage($params);
         }
     }
 
     /**
      * Retrieving User Allowed Method
      */
-    public function getAllowedMethod($user_id)
+    public function getAllowedMethod($username)
     {
-        $key = 'telegram_user_method_' . $user_id;
+        $key = 'telegram_user_method_' . $username;
         if ( Cache::has($key) ) {
 
             return Cache::get($key);
 
         } else {
-            $this->setAllowedMethod($user_id);
+            $this->setAllowedMethod($username);
 
-            return $this->getAllowedMethod($user_id);
+            return $this->getAllowedMethod($username);
         }
     }
 
     /**
      * Store User Allowed Method
      */
-    public function setAllowedMethod($user_id)
+    public function setAllowedMethod($username, $type = null)
     {
-        $key = 'telegram_user_method_' . $user_id;
+        $key = 'telegram_user_method_' . $username;
 
-        $user = $this->getUser($user_id);
-        if ( $user->is_admin ) {
+        if ( $type === 'admin' ) {
 
             Cache::forever($key, $this->admin_method);
 
-        } elseif ( $user->is_operator ) {
+        } elseif ( $type === 'operator' ) {
 
             Cache::forever($key, $this->operator_method);
 
         } else {
-
-            Cache::forever($key, []);
+            Cache::forever($key, ['Nothing']);
         }
     }
 
@@ -206,10 +315,9 @@ class TelegramController extends Controller
                 'username'      => $obj_user->username,
                 'first_name'    => $obj_user->first_name,
                 'last_name'     => $obj_user->last_name,
-                'is_admin'      => false,
-                'is_operator'   => false
             ]);
         } else {
+            $user->is_bot       = $obj_user->is_bot;
             $user->username     = $obj_user->username;
             $user->first_name   = $obj_user->first_name;
             $user->last_name    = $obj_user->last_name;
@@ -257,14 +365,18 @@ class TelegramController extends Controller
                 'title'      => $obj_chat->title ?? null,
                 'username'   => $obj_chat->username ?? null,
             ]);
+            Cache::forever('telegram_chat_' . $chat->id, $obj_chat);
         } else {
-            $chat->type      =  $obj_chat->type;
-            $chat->title     =  $obj_chat->title ?? null;
-            $chat->username  =  $obj_chat->username ?? null;
-            $chat->save();
+            $old_chat = $this->getChat($obj_chat->id);
+            if ( $old_chat != $obj_chat ) {
+                $chat->type      =  $obj_chat->type;
+                $chat->title     =  $obj_chat->title;
+                $chat->username  =  $obj_chat->username;
+                $chat->save();
+                Cache::forever('telegram_chat_' . $chat->id, $obj_chat);
+            }
         }
 
-        Cache::forever('telegram_chat_' . $chat->id, $chat);
     }
 
     /**
@@ -287,40 +399,76 @@ class TelegramController extends Controller
 
     /**
      * Store Deposit
-     * @param int $user_id
+     * @param var $user
      * @param int $chat_id
      * @param float $amount
      * @return int id
      */
-    public function setDeposit($user_id, $chat_id, $amount)
+    public function deposit($user, $chat_id, $amount)
     {
-        $deposit = Deposit::create([
-            'user_id' => $user_id,
-            'chat_id' => $chat_id,
-            'amount' => $amount,
-        ]);
-        Cache::forever('newest_deposit', $deposit);
+        $key = 'telegram_start_recording_for_' . $chat_id;
+        if ( Cache::get($key, false) == false ) {
+            die();
+        }
+        if ( in_array('deposit', $this->getAllowedMethod($user->username)) ) {
+            $deposit = Deposit::create([
+                'user_id' => $user->id,
+                'chat_id' => $chat_id,
+                'amount' => $amount,
+            ]);
+            $key = 'newest_deposit_' . $chat_id;
+            Cache::forever($key, $deposit->amount);
 
-        return $deposit->id;
+            return $deposit->id;
+        } else {
+            // Sent Reject Message
+            $params = [
+                'chat_id'   => $chat_id,
+                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+            ];
+            $response = Telegram::bot()->sendMessage($params);
+        }
     }
 
     /**
      * Store Issued
-     * @param int $user_id
+     * @param var $user
      * @param int $chat_id
      * @param float $amount
      * @return int id
      */
-    public function setIssued($user_id, $chat_id, $amount)
+    public function issued($user, $chat_id, $amount)
     {
-        $issued = Issued::create([
-            'user_id' => $user_id,
-            'chat_id' => $chat_id,
-            'amount' => $amount,
-        ]);
-        Cache::forever('newest_issued', $issued);
+        $key = 'telegram_start_recording_for_' . $chat_id;
+        if ( Cache::get($key, false) == false ) {
+            die();
+        }
+        if ( in_array('issued', $this->getAllowedMethod($user->username)) ) {
+            $issued = Issued::create([
+                'user_id' => $user->id,
+                'chat_id' => $chat_id,
+                'amount' => $amount,
+            ]);
+            $key = 'newest_issued_' . $chat_id;
+            Cache::forever($key, $issued->amount);
 
-        return $issued->id;
+            return $issued->id;
+        } else {
+            // Sent Reject Message
+            $params = [
+                'chat_id'   => $chat_id,
+                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+            ];
+            $response = Telegram::bot()->sendMessage($params);
+        }
+    }
+
+    /**
+     * Update balance
+     */
+    public function balance()
+    {
+
     }
 
 }

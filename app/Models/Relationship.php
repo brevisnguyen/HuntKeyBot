@@ -10,12 +10,12 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Class Issued
+ * Class Relationship
  * 
  * @property int $id
- * @property int $user_id
  * @property int $shift_id
- * @property float $amount
+ * @property string $username
+ * @property string $role
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * 
@@ -24,20 +24,18 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @package App\Models
  */
-class Issued extends Model
+class Relationship extends Model
 {
-	protected $table = 'issueds';
+	protected $table = 'relationships';
 
 	protected $casts = [
-		'user_id' => 'int',
-		'shift_id' => 'int',
-		'amount' => 'float'
+		'shift_id' => 'int'
 	];
 
 	protected $fillable = [
-		'user_id',
 		'shift_id',
-		'amount'
+		'username',
+		'role'
 	];
 
 	public function shift()
@@ -47,6 +45,6 @@ class Issued extends Model
 
 	public function user()
 	{
-		return $this->belongsTo(User::class);
+		return $this->belongsTo(User::class, 'username', 'username');
 	}
 }

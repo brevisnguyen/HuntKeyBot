@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class User
- * 
+ *
  * @property int $id
  * @property bool|null $is_bot
  * @property string $username
@@ -20,13 +20,24 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $last_name
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * 
  * @property Collection|Deposit[] $deposits
  * @property Collection|Issued[] $issueds
  * @property Collection|Relationship[] $relationships
- * @property Collection|Shift[] $shifts
- *
  * @package App\Models
+ * @property-read int|null $deposits_count
+ * @property-read int|null $issueds_count
+ * @property-read int|null $relationships_count
+ * @method static \Illuminate\Database\Eloquent\Builder|User newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|User newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|User query()
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereFirstName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereIsBot($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereLastName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereUsername($value)
+ * @mixin \Eloquent
  */
 class User extends Model
 {
@@ -59,10 +70,5 @@ class User extends Model
 	public function relationships()
 	{
 		return $this->hasMany(Relationship::class, 'username', 'username');
-	}
-
-	public function shifts()
-	{
-		return $this->hasMany(Shift::class, 'admin_id');
 	}
 }

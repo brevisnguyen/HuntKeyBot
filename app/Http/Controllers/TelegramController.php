@@ -10,16 +10,11 @@ use App\Models\Chat;
 use App\Models\Issued;
 use App\Models\Deposit;
 use App\Models\Shift;
+use App\Models\Relationship;
 use Telegram;
 
 class TelegramController extends Controller
 {
-    protected $is_shift_start = false;
-    protected $current_chat_id = 0;
-
-    protected $admin_method = ['start', 'stop', 'clear', 'grant', 'revoke', 'deposit', 'issued'];
-    protected $operator_method = ['deposit', 'issued'];
-
     protected $triggers = [
         'start'     => '/^(start)$/',
         'stop'      => '/^(stop)$/',
@@ -62,13 +57,13 @@ class TelegramController extends Controller
                     
                     switch ($key) {
                         case 'start':
-                            $this->start($user->id, $chat->id);
+                            $this->start($user->username, $chat->id);
                             break;
                         case 'stop':
                             $this->stop($user->id, $chat->id);
                             break;
                         case 'grant':
-                            $this->grant($user->id, $chat->id, $matches['user_name']);
+                            $this->grant($user, $chat->id, $matches['user_name'], config('enums.operator.name'));
                             break;
                         case 'revoke':
                             $this->revoke($user->id, $chat->id, $matches['user_name']);
@@ -105,8 +100,8 @@ class TelegramController extends Controller
                     $this->setChat($new_chat);
                     // Store Admin
                     $this->setUser($admin);
-                    // Store Shift and Set Admin
-                    $this->setShift($new_chat, $admin, false, true, false);
+                    // Set Relationships
+                    $this->setRelationships($new_chat->id, $admin->username, config('enums.admin.name'));
                 }
             }
         } elseif ( $message->objectType() === 'left_chat_member' ) {
@@ -125,50 +120,29 @@ class TelegramController extends Controller
     }
 
     /**
-     * Store Shift When The Bot Be Added To Group
-     * 
-     * Set User To Admin Who Added Bot
-     */
-    public function setShift($chat, $user, $is_end = false, $is_admin = false, $is_operator = false)
-    {
-        $shift = Shift::create([
-            'chat_id' => $chat->id,
-            'usename' => $user->username,
-            'is_end' => $is_end,
-            'is_admin' => $is_admin,
-            'is_operator' => $is_operator,
-        ]);
-
-        $key = 'telegram_shift_' . $chat->id;
-        Cache::forever($key, $shift);
-    }
-
-    /**
      * Start Recording Transaction For This Day
-     * @param int $user_id
+     * @param int $username
      * @param int $chat_id
      */
-    public function start($user_id, $chat_id)
+    public function start($username, $chat_id)
     {
-        if ( in_array('start', $this->getAllowedMethod($user_id)) ) {
-            $key = 'telegram_start_recording_for_' . $chat_id;
-            if ( (Cache::has($key) && Cache::get($key) == false) || Cache::has($key) == false) {
-                // Sent Starting Message
+        if ( in_array('start', $this->get_allowed_method($username, $chat_id)) ) {
+
+            $shift_id = $this->create_shift($chat_id, true, false);
+            if ($shift_id !== null) {
                 $params = [
                     'chat_id'   => $chat_id,
-                    'text'      => 'Bắt đầu ghi chép hoạt động.',
+                    'text'      => 'Bắt đầu ghi chép giao dịch.',
                 ];
                 $response = Telegram::bot()->sendMessage($params);
-
-                Cache::put($key, true, now()->addHours(24));
-
-            } elseif ( Cache::has($key) && Cache::get($key) == true ) {
+            } else {
                 $params = [
                     'chat_id'   => $chat_id,
-                    'text'      => 'Hoạt động ghi đã được bật, không cần bật lại.',
+                    'text'      => 'Đã bắt đầu rồi. Không cần bật lại.',
                 ];
                 $response = Telegram::bot()->sendMessage($params);
             }
+
         } else {
             // Sent Reject Message
             $params = [
@@ -184,18 +158,23 @@ class TelegramController extends Controller
      */
     public function stop($user_id, $chat_id)
     {
-        if ( in_array('stop', $this->getAllowedMethod($user_id)) ) {
-            $key = 'telegram_start_recording_for_' . $chat_id;
-            if ( Cache::has($key) && Cache::get($key) == true ) {
-                Cache::forever($key, false);
+        if ( in_array('stop', $this->get_allowed_method($user_id, $chat_id)) ) {
 
-            } elseif ( (Cache::has($key) && Cache::get($key) == false) || Cache::has($key) != false ) {
+            $shift_id = $this->stop_shift($chat_id);
+            if ($shift_id !== null) {
                 $params = [
                     'chat_id'   => $chat_id,
-                    'text'      => 'Hoạt động ghi cần được bật nếu muốn dừng.',
+                    'text'      => 'Dừng phiên ghi chép.',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
+            } else {
+                $params = [
+                    'chat_id'   => $chat_id,
+                    'text'      => 'Phiên chưa bắt đầu hoặc có lỗi xảy ra.',
                 ];
                 $response = Telegram::bot()->sendMessage($params);
             }
+
         } else {
             // Sent Reject Message
             $params = [
@@ -207,20 +186,54 @@ class TelegramController extends Controller
     }
 
     /**
-     * Grant deposit/issued right to user
+     * Create a Shift
+     * @param int $chat_id
      */
-    public function grant($admin_id, $chat_id, $username)
+    public function create_shift($chat_id, $is_start = false, $is_end = false)
     {
-        if ( in_array('grant', $this->getAllowedMethod($admin_id)) ) {
+        $shift = Shift::whereChatId($chat_id)->whereIsStart(true)->whereIsEnd(false)->latest()->first();
+        if ( $shift !== null ) {
 
             $shift = Shift::create([
-                'chat_id'       => $chat_id,
-                'username'      => $username,
-                'is_end'        => false,
-                'is_admin'      => false,
-                'is_operator'   => true,
+                'chat_id'   => $chat_id,
+                'is_start'  => $is_start,
+                'is_end'    => $is_end,
             ]);
-            $this->setAllowedMethod($username, 'operator');
+
+            return $shift->id;
+
+        }
+        return null;
+    }
+
+    /**
+     * Stop a Shift
+     */
+    public function stop_shift($chat_id)
+    {
+        $shift = Shift::whereChatId($chat_id)->whereIsStart(true)->whereIsEnd(false)->latest()->first();
+        if ( $shift !== null ) {
+            $shift->is_start = true;
+            $shift->is_end = true;
+            $shift->save();
+
+            return $shift->id;
+        }
+        return null;
+    }
+
+    /**
+     * Grant operator right to user
+     * @param Telegram\Bot\Objects\User $admin
+     * @param int $chat_id
+     * @param str $username
+     * @param str $role
+     */
+    public function grant($admin, $chat_id, $username, $role)
+    {
+        if ( in_array('grant', $this->get_allowed_method($admin->username, $chat_id)) ) {
+            $this->setRelationships($chat_id, $username, $role);
+
             $params = [
                 'chat_id'       => $chat_id,
                 'text'          => 'Thêm quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . ' . Thành công!',
@@ -240,18 +253,33 @@ class TelegramController extends Controller
 
     /**
      * Revoke user right
+     * @param Telegram\Bot\Objects\User $admin
+     * @param int $chat_id
+     * @param int $username
      */
-    public function revoke($admin_id, $chat_id, $username)
+    public function revoke($admin, $chat_id, $username)
     {
-        if ( in_array('grant', $this->getAllowedMethod($admin_id)) ) {
+        if ( in_array('revoke', $this->get_allowed_method($admin->username, $chat_id)) ) {
+            
+            $relationship = Relationship::whereUsername($username)->whereChatId($chat_id);
+            if ( $relationship == null ) {
+                $this->setRelationships($chat_id, $username, config('enums.guest.name'));
+            
+                $params = [
+                    'chat_id'       => $chat_id,
+                    'text'          => 'Xoá quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . '</a>. Thành công!',
+                    'parse_mode'    => 'HTML',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
 
-            $this->setAllowedMethod($username);
-            $params = [
-                'chat_id'       => $chat_id,
-                'text'          => 'Xoá quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . ' . Thành công!',
-                'parse_mode'    => 'HTML',
-            ];
-            $response = Telegram::bot()->sendMessage($params);
+            } else {
+                $params = [
+                    'chat_id'       => $chat_id,
+                    'text'          => '<a href="https://t.me/' . $username . '">@' . $username . '</a>. Chưa có quyền nào, không cần thu hồi.',
+                    'parse_mode'    => 'HTML',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
+            }
 
         } else {
             // Sent Reject Message
@@ -264,40 +292,52 @@ class TelegramController extends Controller
     }
 
     /**
-     * Retrieving User Allowed Method
+     * Set Relationships
+     * @param int $chat_id
+     * @param int $username
+     * @param str $role
      */
-    public function getAllowedMethod($username)
+    public function setRelationships($chat_id, $username, $role)
     {
-        $key = 'telegram_user_method_' . $username;
-        if ( Cache::has($key) ) {
+        $relationship = Relationship::create([
+            'chat_id' => $chat_id,
+            'username' => $username,
+            'role' => $role,
+        ]);
 
-            return Cache::get($key);
-
-        } else {
-            $this->setAllowedMethod($username);
-
-            return $this->getAllowedMethod($username);
-        }
+        $this->setAllowedMethod($username, $chat_id, config('enums.' . $role . '.roles'));
     }
 
     /**
      * Store User Allowed Method
+     * @param str $username
+     * @param int $chat_id
+     * @param Array $roles
      */
-    public function setAllowedMethod($username, $type = null)
+    public function setAllowedMethod($username, $chat_id, $roles)
     {
-        $key = 'telegram_user_method_' . $username;
+        $key = 'huntkey_bot_relationship_' . $username . '_in_' . $chat_id;
 
-        if ( $type === 'admin' ) {
+        Cache::forever($key, $roles);
+    }
 
-            Cache::forever($key, $this->admin_method);
+    /**
+     * Retrieving User Allowed Method
+     * @return Array
+     */
+    public function get_allowed_method($username, $chat_id)
+    {
+        $key = 'huntkey_bot_relationship_' . $username . '_in_' . $chat_id;
 
-        } elseif ( $type === 'operator' ) {
-
-            Cache::forever($key, $this->operator_method);
-
+        if ( Cache::has($key) ) {
+            return Cache::get($key);
         } else {
-            Cache::forever($key, ['Nothing']);
+            $role = Relationship::whereChatId($chat_id)->whereUsername($username)->first();
+            if ( $role !== null ) {
+                return config('enums.' . $role . '.roles');
+            }
         }
+        return ['Nothing'];
     }
 
     /**
@@ -323,8 +363,6 @@ class TelegramController extends Controller
             $user->last_name    = $obj_user->last_name;
             $user->save();
         }
-
-        Cache::forever('telegram_user_' . $obj_user->id, $user);
     }
 
     /**
@@ -399,35 +437,35 @@ class TelegramController extends Controller
 
     /**
      * Store Deposit
-     * @param var $user
-     * @param int $chat_id
+     * @param Telegram\Bot\Objects\User $user
+     * @param int $shift_id
      * @param float $amount
      * @return int id
      */
-    public function deposit($user, $chat_id, $amount)
+    public function deposit($user, $shift_id, $amount)
     {
-        $key = 'telegram_start_recording_for_' . $chat_id;
-        if ( Cache::get($key, false) == false ) {
-            die();
-        }
-        if ( in_array('deposit', $this->getAllowedMethod($user->username)) ) {
-            $deposit = Deposit::create([
-                'user_id' => $user->id,
-                'chat_id' => $chat_id,
-                'amount' => $amount,
-            ]);
-            $key = 'newest_deposit_' . $chat_id;
-            Cache::forever($key, $deposit->amount);
+        // $key = 'telegram_start_recording_for_' . $chat_id;
+        // if ( Cache::get($key, false) == false ) {
+        //     die();
+        // }
+        // if ( in_array('deposit', $this->get_allowed_method($user->username)) ) {
+        //     $deposit = Deposit::create([
+        //         'user_id' => $user->id,
+        //         'chat_id' => $chat_id,
+        //         'amount' => $amount,
+        //     ]);
+        //     $key = 'newest_deposit_' . $chat_id;
+        //     Cache::forever($key, $deposit->amount);
 
-            return $deposit->id;
-        } else {
-            // Sent Reject Message
-            $params = [
-                'chat_id'   => $chat_id,
-                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
-            ];
-            $response = Telegram::bot()->sendMessage($params);
-        }
+        //     return $deposit->id;
+        // } else {
+        //     // Sent Reject Message
+        //     $params = [
+        //         'chat_id'   => $chat_id,
+        //         'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+        //     ];
+        //     $response = Telegram::bot()->sendMessage($params);
+        // }
     }
 
     /**
@@ -443,7 +481,7 @@ class TelegramController extends Controller
         if ( Cache::get($key, false) == false ) {
             die();
         }
-        if ( in_array('issued', $this->getAllowedMethod($user->username)) ) {
+        if ( in_array('issued', $this->get_allowed_method($user->username, $chat_id)) ) {
             $issued = Issued::create([
                 'user_id' => $user->id,
                 'chat_id' => $chat_id,

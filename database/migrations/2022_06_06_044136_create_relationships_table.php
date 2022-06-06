@@ -15,14 +15,15 @@ class CreateRelationshipsTable extends Migration
     {
         Schema::create('relationships', function (Blueprint $table) {
             $table->id();
-            $table->bigInteger('shift_id')->unsigned();
+            $table->bigInteger('chat_id');
             $table->char('username');
             $table->enum('role', ['admin', 'operator', 'guest']);
             $table->timestamps();
 
-            $table->foreign('shift_id')->references('id')->on('shifts')->onUpdate('cascade')->onDelete('cascade');
+            $table->foreign('chat_id')->references('id')->on('chats')->onUpdate('cascade')->onDelete('cascade');
             $table->foreign('username')->references('username')->on('users')->onUpdate('cascade')->onDelete('cascade');
-            $table->index('shift_id');
+            $table->index('chat_id');
+            $table->index('username');
         });
     }
 

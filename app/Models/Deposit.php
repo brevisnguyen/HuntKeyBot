@@ -11,18 +11,26 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class Deposit
- * 
+ *
  * @property int $id
  * @property int $user_id
  * @property int $shift_id
  * @property float $amount
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * 
  * @property Shift $shift
  * @property User $user
- *
  * @package App\Models
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit query()
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereAmount($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereShiftId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereUserId($value)
+ * @mixin \Eloquent
  */
 class Deposit extends Model
 {

@@ -12,22 +12,31 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class Shift
- * 
+ *
  * @property int $id
  * @property int $chat_id
- * @property int $admin_id
+ * @property bool $is_start
  * @property bool $is_end
  * @property Carbon|null $work_time
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * 
- * @property User $user
  * @property Chat $chat
  * @property Collection|Deposit[] $deposits
  * @property Collection|Issued[] $issueds
- * @property Collection|Relationship[] $relationships
- *
  * @package App\Models
+ * @property-read int|null $deposits_count
+ * @property-read int|null $issueds_count
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift query()
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift whereChatId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift whereIsEnd($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift whereIsStart($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Shift whereWorkTime($value)
+ * @mixin \Eloquent
  */
 class Shift extends Model
 {
@@ -35,7 +44,7 @@ class Shift extends Model
 
 	protected $casts = [
 		'chat_id' => 'int',
-		'admin_id' => 'int',
+		'is_start' => 'bool',
 		'is_end' => 'bool'
 	];
 
@@ -45,15 +54,10 @@ class Shift extends Model
 
 	protected $fillable = [
 		'chat_id',
-		'admin_id',
+		'is_start',
 		'is_end',
 		'work_time'
 	];
-
-	public function user()
-	{
-		return $this->belongsTo(User::class, 'admin_id');
-	}
 
 	public function chat()
 	{
@@ -68,10 +72,5 @@ class Shift extends Model
 	public function issueds()
 	{
 		return $this->hasMany(Issued::class);
-	}
-
-	public function relationships()
-	{
-		return $this->hasMany(Relationship::class);
 	}
 }

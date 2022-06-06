@@ -22,11 +22,9 @@ use Illuminate\Database\Eloquent\Model;
  * @property Carbon|null $updated_at
  * @property Collection|Deposit[] $deposits
  * @property Collection|Issued[] $issueds
- * @property Collection|Relationship[] $relationships
  * @package App\Models
  * @property-read int|null $deposits_count
  * @property-read int|null $issueds_count
- * @property-read int|null $relationships_count
  * @method static \Illuminate\Database\Eloquent\Builder|User newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|User newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|User query()
@@ -65,10 +63,5 @@ class User extends Model
 	public function issueds()
 	{
 		return $this->hasMany(Issued::class);
-	}
-
-	public function relationships()
-	{
-		return $this->hasMany(Relationship::class, 'username', 'username');
 	}
 }

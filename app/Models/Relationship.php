@@ -19,7 +19,6 @@ use Illuminate\Database\Eloquent\Model;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Chat $chat
- * @property User $user
  * @package App\Models
  * @method static \Illuminate\Database\Eloquent\Builder|Relationship newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Relationship newQuery()
@@ -49,10 +48,5 @@ class Relationship extends Model
 	public function chat()
 	{
 		return $this->belongsTo(Chat::class);
-	}
-
-	public function user()
-	{
-		return $this->belongsTo(User::class, 'username', 'username');
 	}
 }

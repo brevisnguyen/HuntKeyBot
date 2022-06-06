@@ -32,12 +32,12 @@ class TelegramController extends Controller
      */
     public function process()
     {
-        // $update = Telegram::bot()->getWebhookUpdate();
-        $update = Telegram::bot()->getUpdates();
+        $update = Telegram::bot()->getWebhookUpdate();
+        // $update = Telegram::bot()->getUpdates();
         if ( empty($update) ) {
             return json_encode(['Nothing to updates']);
         }
-        $update = end($update);
+        // $update = end($update);
         $message = $update->getMessage();
 
         // dd($update);
@@ -52,7 +52,7 @@ class TelegramController extends Controller
                 // $this->run($trigger, $text, $entities);
                 $isMatch = preg_match($trigger, $text, $matches);
                 if ( $isMatch == 1) {
-                    // $this->setUser($user);
+                    $this->setUser($user);
                     // $this->setChat($chat);
                     
                     switch ($key) {
@@ -60,13 +60,13 @@ class TelegramController extends Controller
                             $this->start($user->username, $chat->id);
                             break;
                         case 'stop':
-                            $this->stop($user->id, $chat->id);
+                            $this->stop($user->username, $chat->id);
                             break;
                         case 'grant':
                             $this->grant($user, $chat->id, $matches['user_name'], config('enums.operator.name'));
                             break;
                         case 'revoke':
-                            $this->revoke($user->id, $chat->id, $matches['user_name']);
+                            $this->revoke($user, $chat->id, $matches['user_name']);
                             break;
                         case 'deposit':
                             $this->deposit($user, $chat->id, $matches['deposit_amount']);
@@ -189,10 +189,10 @@ class TelegramController extends Controller
      * Create a Shift
      * @param int $chat_id
      */
-    public function create_shift($chat_id, $is_start = false, $is_end = false)
+    public function create_shift($chat_id, $is_start, $is_end)
     {
-        $shift = Shift::whereChatId($chat_id)->whereIsStart(true)->whereIsEnd(false)->latest()->first();
-        if ( $shift !== null ) {
+        $shift = Shift::whereChatId($chat_id)->whereIsStart($is_start)->whereIsEnd($is_end)->latest()->first();
+        if ( $shift === null ) {
 
             $shift = Shift::create([
                 'chat_id'   => $chat_id,
@@ -232,14 +232,24 @@ class TelegramController extends Controller
     public function grant($admin, $chat_id, $username, $role)
     {
         if ( in_array('grant', $this->get_allowed_method($admin->username, $chat_id)) ) {
-            $this->setRelationships($chat_id, $username, $role);
-
-            $params = [
-                'chat_id'       => $chat_id,
-                'text'          => 'Thêm quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . ' . Thành công!',
-                'parse_mode'    => 'HTML',
-            ];
-            $response = Telegram::bot()->sendMessage($params);
+            $relationship = Relationship::whereUsername($username)->whereChatId($chat_id)->first();
+            if ( $relationship == null ) {
+                $this->setRelationships($chat_id, $username, $role);
+    
+                $params = [
+                    'chat_id'       => $chat_id,
+                    'text'          => 'Thêm quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . '</a> . Thành công!',
+                    'parse_mode'    => 'HTML',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
+            } else {
+                $params = [
+                    'chat_id'       => $chat_id,
+                    'text'          => '<a href="https://t.me/' . $username . '">@' . $username . '</a>. Đã thêm, không cần thêm nữa.',
+                    'parse_mode'    => 'HTML',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
+            }
 
         } else {
             // Sent Reject Message
@@ -261,9 +271,11 @@ class TelegramController extends Controller
     {
         if ( in_array('revoke', $this->get_allowed_method($admin->username, $chat_id)) ) {
             
-            $relationship = Relationship::whereUsername($username)->whereChatId($chat_id);
-            if ( $relationship == null ) {
-                $this->setRelationships($chat_id, $username, config('enums.guest.name'));
+            $relationship = Relationship::whereUsername($username)->whereChatId($chat_id)->first();
+            if ( $relationship !== null ) {
+                $relationship->role = config('enums.guest.name');
+                $relationship->save();
+                $this->setAllowedMethod($username, $chat_id, config('enums.guest.roles'));
             
                 $params = [
                     'chat_id'       => $chat_id,
@@ -400,10 +412,9 @@ class TelegramController extends Controller
             $chat = Chat::create([
                 'id'         => $obj_chat->id,
                 'type'       => $obj_chat->type,
-                'title'      => $obj_chat->title ?? null,
-                'username'   => $obj_chat->username ?? null,
+                'title'      => $obj_chat->title,
+                'username'   => $obj_chat->username,
             ]);
-            Cache::forever('telegram_chat_' . $chat->id, $obj_chat);
         } else {
             $old_chat = $this->getChat($obj_chat->id);
             if ( $old_chat != $obj_chat ) {
@@ -411,7 +422,6 @@ class TelegramController extends Controller
                 $chat->title     =  $obj_chat->title;
                 $chat->username  =  $obj_chat->username;
                 $chat->save();
-                Cache::forever('telegram_chat_' . $chat->id, $obj_chat);
             }
         }
 

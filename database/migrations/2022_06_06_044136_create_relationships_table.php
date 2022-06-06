@@ -21,7 +21,7 @@ class CreateRelationshipsTable extends Migration
             $table->timestamps();
 
             $table->foreign('chat_id')->references('id')->on('chats')->onUpdate('cascade')->onDelete('cascade');
-            $table->foreign('username')->references('username')->on('users')->onUpdate('cascade')->onDelete('cascade');
+            // $table->foreign('username')->references('username')->on('users')->onUpdate('cascade')->onDelete('cascade');
             $table->index('chat_id');
             $table->index('username');
         });

@@ -44,7 +44,8 @@ class Deposit extends Model
 	protected $fillable = [
 		'user_id',
 		'shift_id',
-		'amount'
+		'amount',
+		'created_at'
 	];
 
 	public function work_shift()
@@ -54,6 +55,6 @@ class Deposit extends Model
 
 	public function user()
 	{
-		return $this->belongsTo(User::class);
+		return $this->belongsTo(User::class, 'user_id', 'id');
 	}
 }

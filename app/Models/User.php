@@ -35,12 +35,14 @@ class User extends Model
 	protected $table = 'users';
 	public $incrementing = false;
 	public $timestamps = false;
+	// protected $primaryKey = 'username';
 
 	protected $casts = [
 		'id' => 'int'
 	];
 
 	protected $fillable = [
+		'id',
 		'username',
 		'first_name',
 		'last_name'
@@ -48,11 +50,16 @@ class User extends Model
 
 	public function deposits()
 	{
-		return $this->hasMany(Deposit::class);
+		return $this->hasMany(Deposit::class, 'user_id', 'id');
 	}
 
 	public function issueds()
 	{
-		return $this->hasMany(Issued::class);
+		return $this->hasMany(Issued::class, 'user_id', 'id');
+	}
+
+	public function chats()
+	{
+		return $this->belongsToMany(Chat::class, 'user_chats', 'username', 'chat_id');
 	}
 }

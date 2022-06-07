@@ -41,18 +41,19 @@ class Chat extends Model
 	];
 
 	protected $fillable = [
+		'id',
 		'type',
 		'title',
 		'username'
 	];
 
-	public function user_chats()
-	{
-		return $this->hasMany(UserChat::class);
-	}
-
 	public function work_shifts()
 	{
 		return $this->hasMany(WorkShift::class);
+	}
+
+	public function users()
+	{
+		return $this->belongsToMany(User::class, 'user_chats', 'chat_id', 'username');
 	}
 }

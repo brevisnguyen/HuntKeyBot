@@ -40,9 +40,4 @@ class UserChat extends Model
 		'username',
 		'role'
 	];
-
-	public function chat()
-	{
-		return $this->belongsTo(Chat::class);
-	}
 }

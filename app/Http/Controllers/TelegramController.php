@@ -2,9 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-// use Telegram\Bot\Laravel\Facades\Telegram;
 use App\Models\User;
 use App\Models\Chat;
 use App\Models\Issued;
@@ -12,6 +10,8 @@ use App\Models\Deposit;
 use App\Models\Shift;
 use App\Models\Relationship;
 use Telegram;
+
+date_default_timezone_set('Asia/Manila');
 
 class TelegramController extends Controller
 {
@@ -32,12 +32,12 @@ class TelegramController extends Controller
      */
     public function process()
     {
-        $update = Telegram::bot()->getWebhookUpdate();
-        // $update = Telegram::bot()->getUpdates();
+        // $update = Telegram::bot()->getWebhookUpdate();
+        $update = Telegram::bot()->getUpdates();
         if ( empty($update) ) {
             return json_encode(['Nothing to updates']);
         }
-        // $update = end($update);
+        $update = end($update);
         $message = $update->getMessage();
 
         // dd($update);
@@ -232,6 +232,15 @@ class TelegramController extends Controller
     public function grant($admin, $chat_id, $username, $role)
     {
         if ( in_array('grant', $this->get_allowed_method($admin->username, $chat_id)) ) {
+            if ( $admin->username == $username ) {
+                $params = [
+                    'chat_id'   => $chat_id,
+                    'text'      => 'Bạn không thể gán/xoá quyền của chính mình.',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
+                die();
+            }
+
             $relationship = Relationship::whereUsername($username)->whereChatId($chat_id)->first();
             if ( $relationship == null ) {
                 $this->setRelationships($chat_id, $username, $role);
@@ -270,7 +279,15 @@ class TelegramController extends Controller
     public function revoke($admin, $chat_id, $username)
     {
         if ( in_array('revoke', $this->get_allowed_method($admin->username, $chat_id)) ) {
-            
+            if ( $admin->username == $username ) {
+                $params = [
+                    'chat_id'   => $chat_id,
+                    'text'      => 'Bạn không thể gán/xoá quyền của chính mình.',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
+                die();
+            }
+
             $relationship = Relationship::whereUsername($username)->whereChatId($chat_id)->first();
             if ( $relationship !== null ) {
                 $relationship->role = config('enums.guest.name');

@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateShiftsTable extends Migration
+class CreateWorkShiftsTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,13 +13,13 @@ class CreateShiftsTable extends Migration
      */
     public function up()
     {
-        Schema::create('shifts', function (Blueprint $table) {
+        Schema::create('work_shifts', function (Blueprint $table) {
             $table->id();
             $table->bigInteger('chat_id');
             $table->boolean('is_start')->default(false);
             $table->boolean('is_end')->default(false);
-            $table->timestamp('work_time')->nullable();
-            $table->timestamps();
+            $table->dateTime('start_time')->nullable();
+            $table->dateTime('stop_time')->nullable();
 
             $table->foreign('chat_id')->references('id')->on('chats')->onUpdate('cascade')->onDelete('cascade');
             $table->index('chat_id');
@@ -33,6 +33,6 @@ class CreateShiftsTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('shifts');
+        Schema::dropIfExists('work_shifts');
     }
 }

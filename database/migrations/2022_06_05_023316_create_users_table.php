@@ -15,11 +15,9 @@ class CreateUsersTable extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->bigInteger('id')->primary();
-            $table->boolean('is_bot')->nullable();
-            $table->char('username', 191)->unique();
+            $table->char('username')->unique();
             $table->char('first_name');
             $table->char('last_name');
-            $table->timestamps();
 
             $table->index('username');
         });

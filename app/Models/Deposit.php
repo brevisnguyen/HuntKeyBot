@@ -17,8 +17,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $shift_id
  * @property float $amount
  * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
- * @property Shift $shift
+ * @property WorkShift $work_shift
  * @property User $user
  * @package App\Models
  * @method static \Illuminate\Database\Eloquent\Builder|Deposit newModelQuery()
@@ -28,13 +27,13 @@ use Illuminate\Database\Eloquent\Model;
  * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereId($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereShiftId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereUpdatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereUserId($value)
  * @mixin \Eloquent
  */
 class Deposit extends Model
 {
 	protected $table = 'deposits';
+	public $timestamps = false;
 
 	protected $casts = [
 		'user_id' => 'int',
@@ -48,9 +47,9 @@ class Deposit extends Model
 		'amount'
 	];
 
-	public function shift()
+	public function work_shift()
 	{
-		return $this->belongsTo(Shift::class);
+		return $this->belongsTo(WorkShift::class, 'shift_id');
 	}
 
 	public function user()

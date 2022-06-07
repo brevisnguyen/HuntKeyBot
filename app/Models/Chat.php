@@ -6,7 +6,6 @@
 
 namespace App\Models;
 
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
@@ -17,21 +16,17 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $type
  * @property string|null $title
  * @property string|null $username
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
- * @property Collection|Relationship[] $relationships
- * @property Collection|Shift[] $shifts
+ * @property Collection|UserChat[] $user_chats
+ * @property Collection|WorkShift[] $work_shifts
  * @package App\Models
- * @property-read int|null $relationships_count
- * @property-read int|null $shifts_count
+ * @property-read int|null $user_chats_count
+ * @property-read int|null $work_shifts_count
  * @method static \Illuminate\Database\Eloquent\Builder|Chat newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Chat newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Chat query()
- * @method static \Illuminate\Database\Eloquent\Builder|Chat whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Chat whereId($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Chat whereTitle($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Chat whereType($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Chat whereUpdatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Chat whereUsername($value)
  * @mixin \Eloquent
  */
@@ -39,25 +34,25 @@ class Chat extends Model
 {
 	protected $table = 'chats';
 	public $incrementing = false;
+	public $timestamps = false;
 
 	protected $casts = [
 		'id' => 'int'
 	];
 
 	protected $fillable = [
-		'id',
 		'type',
 		'title',
 		'username'
 	];
 
-	public function relationships()
+	public function user_chats()
 	{
-		return $this->hasMany(Relationship::class);
+		return $this->hasMany(UserChat::class);
 	}
 
-	public function shifts()
+	public function work_shifts()
 	{
-		return $this->hasMany(Shift::class);
+		return $this->hasMany(WorkShift::class);
 	}
 }

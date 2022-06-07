@@ -18,10 +18,10 @@ class CreateIssuedsTable extends Migration
             $table->bigInteger('user_id');
             $table->bigInteger('shift_id')->unsigned();
             $table->float('amount', 8, 2);
-            $table->timestamps();
+            $table->dateTime('created_at')->nullable();
 
             $table->foreign('user_id')->references('id')->on('users')->onUpdate('cascade')->onDelete('cascade');
-            $table->foreign('shift_id')->references('id')->on('shifts')->onUpdate('cascade')->onDelete('cascade');
+            $table->foreign('shift_id')->references('id')->on('work_shifts')->onUpdate('cascade')->onDelete('cascade');
             $table->index('shift_id');
         });
     }

@@ -18,7 +18,6 @@ class CreateChatsTable extends Migration
             $table->enum('type', ['private', 'group', 'supergroup', 'channel']);
             $table->char('title')->nullable();
             $table->char('username')->nullable();
-            $table->timestamps();
         });
     }
 

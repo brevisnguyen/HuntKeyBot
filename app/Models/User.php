@@ -14,8 +14,8 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property int $id
  * @property string $username
- * @property string $first_name
- * @property string $last_name
+ * @property string|null $first_name
+ * @property string|null $last_name
  * @property Collection|Deposit[] $deposits
  * @property Collection|Issued[] $issueds
  * @package App\Models

@@ -7,8 +7,8 @@ use App\Models\User;
 use App\Models\Chat;
 use App\Models\Issued;
 use App\Models\Deposit;
-use App\Models\Shift;
-use App\Models\Relationship;
+use App\Models\WorkShift;
+use App\Models\UserChat;
 use Telegram;
 
 date_default_timezone_set('Asia/Manila');
@@ -53,8 +53,7 @@ class TelegramController extends Controller
                 $isMatch = preg_match($trigger, $text, $matches);
                 if ( $isMatch == 1) {
                     $this->setUser($user);
-                    // $this->setChat($chat);
-                    
+
                     switch ($key) {
                         case 'start':
                             $this->start($user->username, $chat->id);
@@ -72,7 +71,7 @@ class TelegramController extends Controller
                             $this->deposit($user, $chat->id, $matches['deposit_amount']);
                             break;
                         case 'issued':
-                            // $this->issued();
+                            $this->issued($user, $chat->id, $matches['issued_amount']);
                             break;
                         default:
                             # code...
@@ -101,7 +100,7 @@ class TelegramController extends Controller
                     // Store Admin
                     $this->setUser($admin);
                     // Set Relationships
-                    $this->setRelationships($new_chat->id, $admin->username, config('enums.admin.name'));
+                    $this->set_user_chat($new_chat->id, $admin->username, config('enums.admin.name'));
                 }
             }
         } elseif ( $message->objectType() === 'left_chat_member' ) {
@@ -186,15 +185,15 @@ class TelegramController extends Controller
     }
 
     /**
-     * Create a Shift
+     * Create a WorkShift
      * @param int $chat_id
      */
     public function create_shift($chat_id, $is_start, $is_end)
     {
-        $shift = Shift::whereChatId($chat_id)->whereIsStart($is_start)->whereIsEnd($is_end)->latest()->first();
+        $shift = WorkShift::whereChatId($chat_id)->whereIsStart($is_start)->whereIsEnd($is_end)->latest('start_time')->first();
         if ( $shift === null ) {
 
-            $shift = Shift::create([
+            $shift = WorkShift::create([
                 'chat_id'   => $chat_id,
                 'is_start'  => $is_start,
                 'is_end'    => $is_end,
@@ -207,11 +206,11 @@ class TelegramController extends Controller
     }
 
     /**
-     * Stop a Shift
+     * Stop a WorkShift
      */
     public function stop_shift($chat_id)
     {
-        $shift = Shift::whereChatId($chat_id)->whereIsStart(true)->whereIsEnd(false)->latest()->first();
+        $shift = WorkShift::whereChatId($chat_id)->whereIsStart(true)->whereIsEnd(false)->latest('stop_time')->first();
         if ( $shift !== null ) {
             $shift->is_start = true;
             $shift->is_end = true;
@@ -241,10 +240,11 @@ class TelegramController extends Controller
                 die();
             }
 
-            $relationship = Relationship::whereUsername($username)->whereChatId($chat_id)->first();
-            if ( $relationship == null ) {
-                $this->setRelationships($chat_id, $username, $role);
-    
+            $chat = Chat::find($chat_id);
+            $state =  $chat->users()->sync([$username => ['role' => $role]]);
+            if ( $state['updated'] || $state['attached']) {
+
+                $this->setAllowedMethod($username, $chat_id, config('enums.' . $role . '.roles'));
                 $params = [
                     'chat_id'       => $chat_id,
                     'text'          => 'Thêm quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . '</a> . Thành công!',
@@ -288,10 +288,10 @@ class TelegramController extends Controller
                 die();
             }
 
-            $relationship = Relationship::whereUsername($username)->whereChatId($chat_id)->first();
-            if ( $relationship !== null ) {
-                $relationship->role = config('enums.guest.name');
-                $relationship->save();
+            $chat = Chat::find($chat_id);
+            $state =  $chat->users()->sync([$username => ['role' => config('enums.guest.name')]]);
+            if ( $state['updated']  || $state['attached'] ) {
+
                 $this->setAllowedMethod($username, $chat_id, config('enums.guest.roles'));
             
                 $params = [
@@ -326,13 +326,10 @@ class TelegramController extends Controller
      * @param int $username
      * @param str $role
      */
-    public function setRelationships($chat_id, $username, $role)
+    public function set_user_chat($chat_id, $username, $role)
     {
-        $relationship = Relationship::create([
-            'chat_id' => $chat_id,
-            'username' => $username,
-            'role' => $role,
-        ]);
+        $chat = Chat::find($chat_id);
+        $chat->users()->attach($username, ['role' => $role]);
 
         $this->setAllowedMethod($username, $chat_id, config('enums.' . $role . '.roles'));
     }
@@ -358,15 +355,7 @@ class TelegramController extends Controller
     {
         $key = 'huntkey_bot_relationship_' . $username . '_in_' . $chat_id;
 
-        if ( Cache::has($key) ) {
-            return Cache::get($key);
-        } else {
-            $role = Relationship::whereChatId($chat_id)->whereUsername($username)->first();
-            if ( $role !== null ) {
-                return config('enums.' . $role . '.roles');
-            }
-        }
-        return ['Nothing'];
+        return Cache::has($key) ? Cache::get($key) : ['Nothing'];
     }
 
     /**
@@ -375,23 +364,10 @@ class TelegramController extends Controller
      */
     public function setUser($obj_user)
     {
-        $user = User::find($obj_user->id);
-
-        if ( $user == null ) {  // create new user
-            $user = User::create([
-                'id'            => $obj_user->id,
-                'is_bot'        => $obj_user->is_bot,
-                'username'      => $obj_user->username,
-                'first_name'    => $obj_user->first_name,
-                'last_name'     => $obj_user->last_name,
-            ]);
-        } else {
-            $user->is_bot       = $obj_user->is_bot;
-            $user->username     = $obj_user->username;
-            $user->first_name   = $obj_user->first_name;
-            $user->last_name    = $obj_user->last_name;
-            $user->save();
-        }
+        $user = User::updateOrCreate(
+            [ 'id' => $obj_user->id ],
+            [ 'username' => $obj_user->username, 'first_name' => $obj_user->first_name, 'last_name' => $obj_user->last_name ]
+        );
     }
 
     /**
@@ -423,25 +399,10 @@ class TelegramController extends Controller
      */
     public function setChat($obj_chat)
     {
-        $chat = Chat::find($obj_chat->id);
-
-        if ( $chat == null ) {  // add new chat
-            $chat = Chat::create([
-                'id'         => $obj_chat->id,
-                'type'       => $obj_chat->type,
-                'title'      => $obj_chat->title,
-                'username'   => $obj_chat->username,
-            ]);
-        } else {
-            $old_chat = $this->getChat($obj_chat->id);
-            if ( $old_chat != $obj_chat ) {
-                $chat->type      =  $obj_chat->type;
-                $chat->title     =  $obj_chat->title;
-                $chat->username  =  $obj_chat->username;
-                $chat->save();
-            }
-        }
-
+        $chat = Chat::updateOrCreate(
+            [ 'id' =>  $obj_chat->id ],
+            [ 'type' => $obj_chat->type, 'title' => $obj_chat->title, 'username' => $obj_chat->username ]
+        );
     }
 
     /**
@@ -465,59 +426,79 @@ class TelegramController extends Controller
     /**
      * Store Deposit
      * @param Telegram\Bot\Objects\User $user
-     * @param int $shift_id
+     * @param int $chat_id
      * @param float $amount
      * @return int id
      */
-    public function deposit($user, $shift_id, $amount)
+    public function deposit($user, $chat_id, $amount)
     {
-        // $key = 'telegram_start_recording_for_' . $chat_id;
-        // if ( Cache::get($key, false) == false ) {
-        //     die();
-        // }
-        // if ( in_array('deposit', $this->get_allowed_method($user->username)) ) {
-        //     $deposit = Deposit::create([
-        //         'user_id' => $user->id,
-        //         'chat_id' => $chat_id,
-        //         'amount' => $amount,
-        //     ]);
-        //     $key = 'newest_deposit_' . $chat_id;
-        //     Cache::forever($key, $deposit->amount);
+        if ( in_array('deposit', $this->get_allowed_method($user->username, $chat_id)) ) {
 
-        //     return $deposit->id;
-        // } else {
-        //     // Sent Reject Message
-        //     $params = [
-        //         'chat_id'   => $chat_id,
-        //         'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
-        //     ];
-        //     $response = Telegram::bot()->sendMessage($params);
-        // }
+            $shift_id = $this->get_current_shift_id($chat_id);
+
+            if ( $shift_id === null ) {
+                $params = [
+                    'chat_id'   => $chat_id,
+                    'text'      => 'Phiên chưa bắt đầu.',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
+                die();
+            }
+
+            $deposit = User::find($user->id)->deposits()->create([
+                'shift_id'   => $shift_id,
+                'amount'     => $amount,
+                'created_at' => date('Y-m-d H:i:s', time()),
+            ]);
+
+            $this->balance($shift_id, $chat_id);
+
+            $key = 'newest_deposit_in_' . $chat_id;
+            Cache::forever($key, $deposit->amount);
+
+        } else {
+            // Sent Reject Message
+            $params = [
+                'chat_id'   => $chat_id,
+                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+            ];
+            $response = Telegram::bot()->sendMessage($params);
+        }
     }
 
     /**
      * Store Issued
-     * @param var $user
+     * @param Telegram\Bot\Objects\User $user
      * @param int $chat_id
      * @param float $amount
      * @return int id
      */
     public function issued($user, $chat_id, $amount)
     {
-        $key = 'telegram_start_recording_for_' . $chat_id;
-        if ( Cache::get($key, false) == false ) {
-            die();
-        }
         if ( in_array('issued', $this->get_allowed_method($user->username, $chat_id)) ) {
-            $issued = Issued::create([
-                'user_id' => $user->id,
-                'chat_id' => $chat_id,
-                'amount' => $amount,
+
+            $shift_id = $this->get_current_shift_id($chat_id);
+
+            if ( $shift_id === null ) {
+                $params = [
+                    'chat_id'   => $chat_id,
+                    'text'      => 'Phiên chưa bắt đầu.',
+                ];
+                $response = Telegram::bot()->sendMessage($params);
+                die();
+            }
+
+            $issued = User::find($user->id)->issueds()->create([
+                'shift_id'   => $shift_id,
+                'amount'     => $amount,
+                'created_at' => date('Y-m-d H:i:s', time()),
             ]);
-            $key = 'newest_issued_' . $chat_id;
+
+            $this->balance($shift_id, $chat_id);
+
+            $key = 'newest_issued_in_' . $chat_id;
             Cache::forever($key, $issued->amount);
 
-            return $issued->id;
         } else {
             // Sent Reject Message
             $params = [
@@ -531,9 +512,59 @@ class TelegramController extends Controller
     /**
      * Update balance
      */
-    public function balance()
+    public function balance($shift_id, $chat_id)
     {
+        $deposits = WorkShift::find($shift_id)->deposits()->latest()->get();
+        $issueds = WorkShift::find($shift_id)->issueds()->latest()->get();
 
+        $total_deposit = count($deposits);
+        $total_issued = count($issueds);
+
+        $amount_deposit = 0;
+        $text_deposit = '<b>Deposit ('. $total_deposit .') :</b>' . '
+';
+        foreach ($deposits as $key => $deposit) {
+            $amount_deposit += $deposit->amount;
+            if ( $key <= 4 ) {
+                $text_deposit .= '<code>' . $deposit->created_at . '</code> : <b>' . $deposit->amount . '</b>' . '
+';
+            }
+        }
+
+        $amount_issued = 0;
+        $text_issued = '<b>Issued ('. $total_issued .') :</b>' . '
+';
+        foreach ($issueds as $key => $issued) {
+            $amount_issued += $issued->amount;
+            if ( $key <= 4 ) {
+                $text_issued .= '<code>' . $issued->created_at . '</code> : <b>' . $issued->amount . '</b>' . '
+';
+            }
+        }
+
+        $not_issued = $amount_deposit - $amount_issued;
+        $text_statistic = '<b>Issued Available: ' . $amount_deposit . '</b>' . '
+' . '<b>Total Issued: ' . $amount_issued .'</b>' . '
+' . '<b>Not Issued: ' . $not_issued . '</b>';
+
+        $params = [
+            'chat_id'   => $chat_id,
+            'text'      => $text_deposit . '
+' . $text_issued . '
+' . $text_statistic,
+            'parse_mode'    => 'HTML',
+        ];
+        $response = Telegram::bot()->sendMessage($params);
+
+    }
+
+    /**
+     * Retrieving Current Shift Id
+     */
+    public function get_current_shift_id($chat_id)
+    {
+        $shift = WorkShift::whereChatId($chat_id)->whereIsStart(true)->whereIsEnd(false)->first();
+        return $shift !== null ? $shift->id : null;
     }
 
 }

@@ -18,7 +18,6 @@ class CreateUserChatsTable extends Migration
             $table->bigInteger('chat_id');
             $table->char('username');
             $table->enum('role', ['admin', 'operator', 'guest']);
-            $table->dateTime('created_at')->nullable();
 
             $table->foreign('chat_id')->references('id')->on('chats')->onUpdate('cascade')->onDelete('cascade');
             $table->index('chat_id');

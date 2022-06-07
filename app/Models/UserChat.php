@@ -6,7 +6,6 @@
 
 namespace App\Models;
 
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -16,14 +15,12 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $chat_id
  * @property string $username
  * @property string $role
- * @property Carbon|null $created_at
  * @property Chat $chat
  * @package App\Models
  * @method static \Illuminate\Database\Eloquent\Builder|UserChat newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|UserChat newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|UserChat query()
  * @method static \Illuminate\Database\Eloquent\Builder|UserChat whereChatId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|UserChat whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder|UserChat whereId($value)
  * @method static \Illuminate\Database\Eloquent\Builder|UserChat whereRole($value)
  * @method static \Illuminate\Database\Eloquent\Builder|UserChat whereUsername($value)

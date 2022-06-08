@@ -214,17 +214,18 @@ class TelegramController extends Controller
     {
         if ( in_array('grant', $this->get_allowed_method($admin->username, $chat_id)) ) {
             if ( $admin->username == $username ) {
-                $params = [
+                $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
                     'text'      => 'Bạn không thể gán/xoá quyền của chính mình.',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
+                ]);
                 die();
             }
 
-            $chat = Chat::find($chat_id);
-            $state =  $chat->users()->sync([$username => ['role' => $role]]);
-            if ( $state['updated'] || $state['attached']) {
+            try {
+                $userchat = UserChat::updateOrCreate(
+                    ['username' => $username, 'chat_id' => $chat_id],
+                    ['role' => $role],
+                );
 
                 $this->setAllowedMethod($username, $chat_id, config('enums.' . $role . '.roles'));
                 $params = [
@@ -234,23 +235,20 @@ class TelegramController extends Controller
                     'parse_mode'    => 'HTML',
                 ];
                 $response = Telegram::bot()->sendMessage($params);
-            } else {
-                $params = [
+
+            } catch ( \Throwable $th ) {
+                $response = Telegram::bot()->sendMessage([
                     'chat_id'       => $chat_id,
-                    'text'          => '<a href="https://t.me/' . $username . '">@' . $username . '</a>. Đã thêm, không cần thêm nữa.',
-                    'disable_web_page_preview' => true,
-                    'parse_mode'    => 'HTML',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
+                    'text'          => 'Có lỗi xảy ra xin thử lại sau.',
+                ]);
             }
 
         } else {
             // Sent Reject Message
-            $params = [
+            $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
                 'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
-            ];
-            $response = Telegram::bot()->sendMessage($params);
+            ]);
         }
     }
 
@@ -264,20 +262,20 @@ class TelegramController extends Controller
     {
         if ( in_array('revoke', $this->get_allowed_method($admin->username, $chat_id)) ) {
             if ( $admin->username == $username ) {
-                $params = [
+                $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
                     'text'      => 'Bạn không thể gán/xoá quyền của chính mình.',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
+                ]);
                 die();
             }
 
-            $chat = Chat::find($chat_id);
-            $state =  $chat->users()->sync([$username => ['role' => config('enums.guest.name')]]);
-            if ( $state['updated']  || $state['attached'] ) {
-
+            try {
+                $userchat = UserChat::updateOrCreate(
+                    ['username' => $username, 'chat_id' => $chat_id],
+                    ['role' => config('enums.guest.name')],
+                );
                 $this->setAllowedMethod($username, $chat_id, config('enums.guest.roles'));
-            
+
                 $params = [
                     'chat_id'       => $chat_id,
                     'text'          => 'Xoá quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . '</a>. Thành công!',
@@ -286,23 +284,19 @@ class TelegramController extends Controller
                 ];
                 $response = Telegram::bot()->sendMessage($params);
 
-            } else {
-                $params = [
+            } catch ( \Throwable $th ) {
+                $response = Telegram::bot()->sendMessage([
                     'chat_id'       => $chat_id,
-                    'text'          => '<a href="https://t.me/' . $username . '">@' . $username . '</a>. Chưa có quyền nào, không cần thu hồi.',
-                    'disable_web_page_preview' => true,
-                    'parse_mode'    => 'HTML',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
+                    'text'          => 'Có lỗi xảy ra xin thử lại sau.',
+                ]);
             }
 
         } else {
             // Sent Reject Message
-            $params = [
+            $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
                 'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
-            ];
-            $response = Telegram::bot()->sendMessage($params);
+            ]);
         }
     }
 

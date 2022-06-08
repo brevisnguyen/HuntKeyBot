@@ -32,12 +32,12 @@ class TelegramController extends Controller
      */
     public function process()
     {
-        // $update = Telegram::bot()->getWebhookUpdate();
-        $update = Telegram::bot()->getUpdates();
+        $update = Telegram::bot()->getWebhookUpdate();
+        // $update = Telegram::bot()->getUpdates();
         if ( empty($update) ) {
             return json_encode(['Nothing to updates']);
         }
-        $update = end($update);
+        // $update = end($update);
         $message = $update->getMessage();
 
         // dd($update);
@@ -120,35 +120,44 @@ class TelegramController extends Controller
 
     /**
      * Start Recording Transaction For This Day
-     * @param int $username
+     * @param str $username
      * @param int $chat_id
      */
     public function start($username, $chat_id)
     {
         if ( in_array('start', $this->get_allowed_method($username, $chat_id)) ) {
 
-            $shift_id = $this->create_shift($chat_id, true, false);
-            if ($shift_id !== null) {
-                $params = [
-                    'chat_id'   => $chat_id,
-                    'text'      => 'Bắt đầu ghi chép giao dịch.',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
-            } else {
-                $params = [
+            $shift = Chat::find($chat_id)
+                ->work_shifts()
+                ->whereIsStart(true)
+                ->whereIsEnd(false)
+                ->first();
+
+            if ( $shift ) {
+                $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
                     'text'      => 'Đã bắt đầu rồi. Không cần bật lại.',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
+                ]);
+
+            } else {
+                $new_shift = Chat::find($chat_id)->work_shifts()->create([
+                    'is_start'   => true,
+                    'is_stop'    => false,
+                    'start_time' => date("Y-m-d H:i:s", time())
+                ]);
+
+                $response = Telegram::bot()->sendMessage([
+                    'chat_id'   => $chat_id,
+                    'text'      => 'Bắt đầu ghi chép giao dịch.',
+                ]);
             }
 
         } else {
             // Sent Reject Message
-            $params = [
+            $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
-                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
-            ];
-            $response = Telegram::bot()->sendMessage($params);
+                'text'      => 'Bạn không có quyền thực hiện hành động này.',
+            ]);
         }
     }
 
@@ -159,13 +168,23 @@ class TelegramController extends Controller
     {
         if ( in_array('stop', $this->get_allowed_method($user_id, $chat_id)) ) {
 
-            $shift_id = $this->stop_shift($chat_id);
-            if ($shift_id !== null) {
-                $params = [
+            $shift = Chat::find($chat_id)
+                ->work_shifts()
+                ->whereIsStart(true)
+                ->whereIsEnd(false)
+                ->first();
+            
+            if ( $shift ) {
+
+                $shift->is_end = true;
+                $shift->stop_time = date("Y-m-d H:i:s", time());
+                $shift->save();
+
+                $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
-                    'text'      => 'Dừng phiên ghi chép.',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
+                    'text'      => 'Dừng phiên ghi chép.'
+                ]);
+
             } else {
                 $params = [
                     'chat_id'   => $chat_id,
@@ -182,43 +201,6 @@ class TelegramController extends Controller
             ];
             $response = Telegram::bot()->sendMessage($params);
         }
-    }
-
-    /**
-     * Create a WorkShift
-     * @param int $chat_id
-     */
-    public function create_shift($chat_id, $is_start, $is_end)
-    {
-        $shift = WorkShift::whereChatId($chat_id)->whereIsStart($is_start)->whereIsEnd($is_end)->latest('start_time')->first();
-        if ( $shift === null ) {
-
-            $shift = WorkShift::create([
-                'chat_id'   => $chat_id,
-                'is_start'  => $is_start,
-                'is_end'    => $is_end,
-            ]);
-
-            return $shift->id;
-
-        }
-        return null;
-    }
-
-    /**
-     * Stop a WorkShift
-     */
-    public function stop_shift($chat_id)
-    {
-        $shift = WorkShift::whereChatId($chat_id)->whereIsStart(true)->whereIsEnd(false)->latest('stop_time')->first();
-        if ( $shift !== null ) {
-            $shift->is_start = true;
-            $shift->is_end = true;
-            $shift->save();
-
-            return $shift->id;
-        }
-        return null;
     }
 
     /**
@@ -248,6 +230,7 @@ class TelegramController extends Controller
                 $params = [
                     'chat_id'       => $chat_id,
                     'text'          => 'Thêm quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . '</a> . Thành công!',
+                    'disable_web_page_preview' => true,
                     'parse_mode'    => 'HTML',
                 ];
                 $response = Telegram::bot()->sendMessage($params);
@@ -255,6 +238,7 @@ class TelegramController extends Controller
                 $params = [
                     'chat_id'       => $chat_id,
                     'text'          => '<a href="https://t.me/' . $username . '">@' . $username . '</a>. Đã thêm, không cần thêm nữa.',
+                    'disable_web_page_preview' => true,
                     'parse_mode'    => 'HTML',
                 ];
                 $response = Telegram::bot()->sendMessage($params);
@@ -297,6 +281,7 @@ class TelegramController extends Controller
                 $params = [
                     'chat_id'       => $chat_id,
                     'text'          => 'Xoá quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . '</a>. Thành công!',
+                    'disable_web_page_preview' => true,
                     'parse_mode'    => 'HTML',
                 ];
                 $response = Telegram::bot()->sendMessage($params);
@@ -305,6 +290,7 @@ class TelegramController extends Controller
                 $params = [
                     'chat_id'       => $chat_id,
                     'text'          => '<a href="https://t.me/' . $username . '">@' . $username . '</a>. Chưa có quyền nào, không cần thu hồi.',
+                    'disable_web_page_preview' => true,
                     'parse_mode'    => 'HTML',
                 ];
                 $response = Telegram::bot()->sendMessage($params);
@@ -451,6 +437,10 @@ class TelegramController extends Controller
                 'created_at' => date('Y-m-d H:i:s', time()),
             ]);
 
+            // $deposit_key = 'huntkey_bot_total_deposit_in_' . $chat_id . '_in_shift_id_' . $shift_id;
+            // $value = Cache::get($deposit_key) + 1;
+            // Cache::forever($deposit_key, $value);
+
             $this->balance($shift_id, $chat_id);
 
             $key = 'newest_deposit_in_' . $chat_id;
@@ -494,6 +484,10 @@ class TelegramController extends Controller
                 'created_at' => date('Y-m-d H:i:s', time()),
             ]);
 
+            // $issued_key = 'huntkey_bot_total_issued_in_' . $chat_id . '_in_shift_id_' . $shift_id;
+            // $value = Cache::get($issued_key) + 1;
+            // Cache::forever($issued_key, $value);
+
             $this->balance($shift_id, $chat_id);
 
             $key = 'newest_issued_in_' . $chat_id;
@@ -525,7 +519,7 @@ class TelegramController extends Controller
 ';
         foreach ($deposits as $key => $deposit) {
             $amount_deposit += $deposit->amount;
-            if ( $key <= 4 ) {
+            if ( $key < 4 ) {
                 $text_deposit .= '<code>' . $deposit->created_at . '</code> : <b>' . $deposit->amount . '</b>' . '
 ';
             }
@@ -536,7 +530,7 @@ class TelegramController extends Controller
 ';
         foreach ($issueds as $key => $issued) {
             $amount_issued += $issued->amount;
-            if ( $key <= 4 ) {
+            if ( $key < 4 ) {
                 $text_issued .= '<code>' . $issued->created_at . '</code> : <b>' . $issued->amount . '</b>' . '
 ';
             }

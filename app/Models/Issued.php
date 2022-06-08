@@ -44,7 +44,8 @@ class Issued extends Model
 	protected $fillable = [
 		'user_id',
 		'shift_id',
-		'amount'
+		'amount',
+		'created_at'
 	];
 
 	public function work_shift()

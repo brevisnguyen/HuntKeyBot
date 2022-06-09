@@ -3,6 +3,14 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\WebhooksController;
+use App\Http\Controllers\TransactionController;
+
+use App\Models\User;
+use App\Models\Chat;
+use App\Models\Issued;
+use App\Models\Deposit;
+use App\Models\WorkShift;
+use App\Models\UserChat;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,8 +33,29 @@ Route::get('updates/' . env('TELEGRAM_BOT_KEY'), [TelegramController::class, 'pr
 Route::get('setWebhook/', [WebhooksController::class, 'setWebhook']);
 Route::get('removeWebhook/', [WebhooksController::class, 'removeWebhook']);
 
-Route::get('debug/', function() {
+Route::get('history/{chat_id}/{d?}/', [TransactionController::class, 'history'])->name('telegram.history');
 
+Route::get('debug/', function() {
+    $chat_id = -1001656586591;
+    $shifts = Chat::find($chat_id)->work_shifts()
+        ->whereBetween('start_time', ['2022-06-08 00:00:00', '2022-06-08 23:59:59'])
+        ->get();
+    $deposits = [];
+    $deposit_count = 0;
+    foreach ($shifts as $shift) {
+        # code...
+        array_push($deposits, $shift->deposits()->get());
+        $deposit_count += $shift->loadCount('deposits')->deposits_count;
+    }
+    $a = array_map(function($items) {
+        $sum = 0;
+        $b = array_map(function($item) {
+            $sum = 0;
+            return $sum += $item['amount'];
+        }, $items->toArray());
+        return $b;
+    }, $deposits);
+    dd($a);
     // \App\Models\Chat::create([
     //     'id' => 333,
     //     'type' => 'group',
@@ -184,5 +213,4 @@ Route::get('debug/', function() {
     //     Cache::put($key, 1);
     //     dd(Cache::get($key));
     // }
-
 });

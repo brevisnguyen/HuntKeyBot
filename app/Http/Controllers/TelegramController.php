@@ -16,13 +16,13 @@ date_default_timezone_set('Asia/Manila');
 class TelegramController extends Controller
 {
     protected $triggers = [
-        'start'     => '/^(start)$/',
-        'stop'      => '/^(stop)$/',
+        'start'     => '/^(开始)$/',
+        'stop'      => '/^(结束)$/',
         'clear'     => '/^(clear)^/',
-        'grant'     => '/(?<=^add operator)\s+?@(?P<user_name>\w+)$/',
-        'revoke'    => '/(?<=^remove operator)\s+?@(?P<user_name>\w+)$/',
-        'deposit'   => '/^deposit\s+?(?P<deposit_amount>\d+?)$/',
-        'issued'    => '/^issued\s+?(?P<issued_amount>\d+?)$/',
+        'grant'     => '/(?<=^设置操作人)\s+?@(?P<user_name>\w+)$/',
+        'revoke'    => '/(?<=^删除操作人)\s+?@(?P<user_name>\w+)$/',
+        'deposit'   => '/^入款\s?(?P<deposit_amount>\d+?)$/',
+        'issued'    => '/^下发\s?(?P<issued_amount>\d+?)$/',
     ];
 
     /**
@@ -136,7 +136,7 @@ class TelegramController extends Controller
             if ( $shift ) {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
-                    'text'      => 'Đã bắt đầu rồi. Không cần bật lại.',
+                    'text'      => '机器人已开始记录今天账单。',
                 ]);
 
             } else {
@@ -148,7 +148,7 @@ class TelegramController extends Controller
 
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
-                    'text'      => 'Bắt đầu ghi chép giao dịch.',
+                    'text'      => '开始记录今天账单。',
                 ]);
             }
 
@@ -156,7 +156,7 @@ class TelegramController extends Controller
             // Sent Reject Message
             $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
-                'text'      => 'Bạn không có quyền thực hiện hành động này.',
+                'text'      => '你没有权限啦。',
             ]);
         }
     }
@@ -182,13 +182,13 @@ class TelegramController extends Controller
 
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
-                    'text'      => 'Dừng phiên ghi chép.'
+                    'text'      => '结束记录。'
                 ]);
 
             } else {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
-                    'text'      => 'Phiên chưa bắt đầu hoặc có lỗi xảy ra.',
+                    'text'      => '记录今天账单还没开始。',
                 ]);
             }
 
@@ -196,7 +196,7 @@ class TelegramController extends Controller
             // Sent Reject Message
             $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
-                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+                'text'      => '你没有权限啦。',
             ]);
         }
     }
@@ -214,7 +214,7 @@ class TelegramController extends Controller
             if ( $admin->username == $username ) {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
-                    'text'      => 'Bạn không thể gán/xoá quyền của chính mình.',
+                    'text'      => '不能设置或删除自己的权限。',
                 ]);
                 die();
             }
@@ -228,7 +228,7 @@ class TelegramController extends Controller
                 $this->setAllowedMethod($username, $chat_id, config('enums.' . $role . '.roles'));
                 $params = [
                     'chat_id'       => $chat_id,
-                    'text'          => 'Thêm quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . '</a> . Thành công!',
+                    'text'          => '设置<a href="https://t.me/' . $username . '">@' . $username . '</a>作为操作人完成。',
                     'disable_web_page_preview' => true,
                     'parse_mode'    => 'HTML',
                 ];
@@ -237,7 +237,7 @@ class TelegramController extends Controller
             } catch ( \Throwable $th ) {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'       => $chat_id,
-                    'text'          => 'Có lỗi xảy ra xin thử lại sau.',
+                    'text'          => '发生错误，请稍后再试。',
                 ]);
             }
 
@@ -245,7 +245,7 @@ class TelegramController extends Controller
             // Sent Reject Message
             $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
-                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+                'text'      => '你没有权限啦。',
             ]);
         }
     }
@@ -262,7 +262,7 @@ class TelegramController extends Controller
             if ( $admin->username == $username ) {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
-                    'text'      => 'Bạn không thể gán/xoá quyền của chính mình.',
+                    'text'      => '不能设置或删除自己的权限。',
                 ]);
                 die();
             }
@@ -276,7 +276,7 @@ class TelegramController extends Controller
 
                 $params = [
                     'chat_id'       => $chat_id,
-                    'text'          => 'Xoá quyền nhập/xuất cho tài khoản <a href="https://t.me/' . $username . '">@' . $username . '</a>. Thành công!',
+                    'text'          => '删除操作人<a href="https://t.me/' . $username . '">@' . $username . '</a>完成。',
                     'disable_web_page_preview' => true,
                     'parse_mode'    => 'HTML',
                 ];
@@ -285,7 +285,7 @@ class TelegramController extends Controller
             } catch ( \Throwable $th ) {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'       => $chat_id,
-                    'text'          => 'Có lỗi xảy ra xin thử lại sau.',
+                    'text'          => '发生错误，请稍后再试。',
                 ]);
             }
 
@@ -293,7 +293,7 @@ class TelegramController extends Controller
             // Sent Reject Message
             $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
-                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+                'text'      => '你没有权限啦。',
             ]);
         }
     }
@@ -417,7 +417,7 @@ class TelegramController extends Controller
             if ( $shift_id === null ) {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
-                    'text'      => 'Phiên chưa bắt đầu.',
+                    'text'      => '记录今天账单还没开始。',
                 ]);
                 die();
             }
@@ -441,7 +441,7 @@ class TelegramController extends Controller
             // Sent Reject Message
             $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
-                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+                'text'      => '你没有权限啦。',
             ]);
         }
     }
@@ -462,7 +462,7 @@ class TelegramController extends Controller
             if ( $shift_id === null ) {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
-                    'text'      => 'Phiên chưa bắt đầu.',
+                    'text'      => '记录今天账单还没开始。',
                 ]);
                 die();
             }
@@ -486,7 +486,7 @@ class TelegramController extends Controller
             // Sent Reject Message
             $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
-                'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
+                'text'      => '你没有权限啦。',
             ]);
         }
     }
@@ -503,7 +503,7 @@ class TelegramController extends Controller
         $total_issued = count($issueds);
 
         $amount_deposit = 0;
-        $text_deposit = '<b>Deposit ('. $total_deposit .') :</b>' . '
+        $text_deposit = '<b>入款（'. $total_deposit .'笔）：</b>' . '
 ';
         foreach ($deposits as $key => $deposit) {
             $amount_deposit += $deposit->amount;
@@ -514,7 +514,7 @@ class TelegramController extends Controller
         }
 
         $amount_issued = 0;
-        $text_issued = '<b>Issued ('. $total_issued .') :</b>' . '
+        $text_issued = '<b>下发（'. $total_issued .'笔）：</b>' . '
 ';
         foreach ($issueds as $key => $issued) {
             $amount_issued += $issued->amount;
@@ -524,16 +524,18 @@ class TelegramController extends Controller
             }
         }
 
+        $url = '<a href="'. route('telegram.history', ['chat_id' => $chat_id]) . '">点击跳转完整账单</a>';
         $not_issued = $amount_deposit - $amount_issued;
-        $text_statistic = '<b>Issued Available: ' . $amount_deposit . '</b>' . '
-' . '<b>Total Issued: ' . $amount_issued .'</b>' . '
-' . '<b>Not Issued: ' . $not_issued . '</b>';
+        $text_statistic = '<b>应下发：' . $amount_deposit . '</b>' . '
+' . '<b>总下发：' . $amount_issued .'</b>' . '
+' . '<b>未下发：' . $not_issued . '</b>';
 
         $params = [
             'chat_id'   => $chat_id,
             'text'      => $text_deposit . '
 ' . $text_issued . '
-' . $text_statistic,
+' . $text_statistic . '
+' . $url,
             'parse_mode'    => 'HTML',
         ];
         $response = Telegram::bot()->sendMessage($params);

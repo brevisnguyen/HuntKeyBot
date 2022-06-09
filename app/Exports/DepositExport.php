@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Deposit;
+use App\Models\Chat;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -10,6 +11,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use Maatwebsite\Excel\Concerns\WithTitle;
 
 class DepositExport implements
     FromQuery,
@@ -17,18 +19,25 @@ class DepositExport implements
     WithMapping,
     WithHeadings,
     WithStyles,
-    WithColumnWidths
+    WithColumnWidths,
+    WithTitle
 {
     protected $date;
+    protected $chat_id;
 
-    public function __construct(String $date)
+    public function __construct(String $date, int $chat_id)
     {
         $this->date = $date;
+        $this->chat_id = $chat_id;
     }
 
     public function query()
     {
-        return Deposit::query()->whereDate('created_at', $this->date)->with('user');
+        $deposits = Chat::find($this->chat_id)
+            ->deposits()
+            ->whereDate('created_at', $this->date)
+            ->with('user');
+        return $deposits;
     }
 
     public function map($deposit): array
@@ -96,5 +105,10 @@ class DepositExport implements
             'C' => 25,
             'D' => 40,
         ];
+    }
+
+    public function title(): string
+    {
+        return '入款';
     }
 }

@@ -27,6 +27,6 @@ class TransactionExportController extends Controller
 
         $chat = Chat::find($chat_id);
 
-        return $this->excel->download(new MultiSheetExport($date), $chat->title . '_' . date('Ymd_His', time()) . '.xlsx');
+        return $this->excel->download(new MultiSheetExport($date, $chat->id), $chat->title . '_' . date('Ymd_His', time()) . '.xlsx');
     }
 }

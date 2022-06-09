@@ -10,10 +10,12 @@ class MultiSheetExport implements WithMultipleSheets
     use Exportable;
 
     protected $date;
+    protected $chat_id;
 
-    public function __construct(String $date)
+    public function __construct(String $date, int $chat_id)
     {
-        $this->date = $date;   
+        $this->date = $date;
+        $this->chat_id = $chat_id;
     }
 
     /**
@@ -23,8 +25,8 @@ class MultiSheetExport implements WithMultipleSheets
     {
         $sheets = [];
 
-        $sheets[] = new DepositExport($this->date);
-        $sheets[] = new IssuedExport($this->date);
+        $sheets[] = new DepositExport($this->date, $this->chat_id);
+        $sheets[] = new IssuedExport($this->date, $this->chat_id);
 
         return $sheets;
     }

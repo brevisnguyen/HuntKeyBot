@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Issued;
+use App\Models\Chat;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -10,6 +11,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use Maatwebsite\Excel\Concerns\WithTitle;
 
 class IssuedExport implements
     FromQuery,
@@ -17,18 +19,26 @@ class IssuedExport implements
     WithMapping,
     WithHeadings,
     WithStyles,
-    WithColumnWidths
+    WithColumnWidths,
+    WithTitle
 {
     protected $date;
+    protected $chat_id;
 
-    public function __construct(String $date)
+    public function __construct(String $date, int $chat_id)
     {
         $this->date = $date;
+        $this->chat_id = $chat_id;
     }
 
     public function query()
     {
-        return Issued::query()->whereDate('created_at', $this->date)->with('user');
+        $issueds = Chat::find($this->chat_id)
+            ->issueds()
+            ->whereDate('created_at', $this->date)
+            ->with('user');
+        return $issueds;
+        // return Issued::query()->whereDate('created_at', $this->date)->with('user');
     }
 
     public function map($issued): array
@@ -96,5 +106,10 @@ class IssuedExport implements
             'C' => 25,
             'D' => 40,
         ];
+    }
+
+    public function title(): string
+    {
+        return '下发';
     }
 }

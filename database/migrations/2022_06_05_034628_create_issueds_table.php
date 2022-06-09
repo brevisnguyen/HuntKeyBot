@@ -17,7 +17,7 @@ class CreateIssuedsTable extends Migration
             $table->id();
             $table->bigInteger('user_id');
             $table->bigInteger('shift_id')->unsigned();
-            $table->float('amount', 8, 2);
+            $table->double('amount');
             $table->dateTime('created_at')->nullable();
 
             $table->foreign('user_id')->references('id')->on('users')->onUpdate('cascade')->onDelete('cascade');

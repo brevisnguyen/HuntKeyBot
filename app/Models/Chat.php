@@ -47,13 +47,13 @@ class Chat extends Model
 		'username'
 	];
 
-	public function work_shifts()
-	{
-		return $this->hasMany(WorkShift::class);
-	}
-
 	public function users()
 	{
 		return $this->belongsToMany(User::class, 'user_chats', 'chat_id', 'username');
+	}
+
+	public function work_shifts()
+	{
+		return $this->hasMany(WorkShift::class);
 	}
 }

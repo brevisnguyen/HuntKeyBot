@@ -92,7 +92,7 @@ class TelegramController extends Controller
                     // Send welcome
                     $response = Telegram::bot()->sendMessage([
                         'chat_id' => $new_chat->id,
-                        'text' => 'Cảm ơn <a href="tg://user?id=' . $admin->id . '">' . $admin->last_name . ' ' . $admin->first_name .'</a> đã thêm tôi vào nhóm.',
+                        'text' => '感谢<a href="tg://user?id=' . $admin->id . '">' . $admin->last_name . ' ' . $admin->first_name .'</a>让我加进群。',
                         'parse_mode' => 'HTML',
                     ]);
                     // Store Chats

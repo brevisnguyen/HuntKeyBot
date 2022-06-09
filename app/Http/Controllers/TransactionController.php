@@ -14,18 +14,21 @@ date_default_timezone_set('Asia/Manila');
 
 class TransactionController extends Controller
 {
-    public function history(Request $request, $chat_id, $d = null)
+    public function history(Request $request, $chat_id)
     {
-        $fromDate = date('Y-m-d', time());
-        $toDate = date('Y-m-d', time());
-        if ( $d == 'yesterday' ) {
+        if ( $request->filled('day') && $request->day == 'yesterday') {
             $fromDate = date('Y-m-d', strtotime('-1 days'));
             $toDate = date('Y-m-d', strtotime('-1 days'));
             $link = '<a class="h4 mx-4" href="'. route('telegram.history', ['chat_id' => $chat_id]) . '">Dữ liệu hôm nay</a>';
+            $exportUrl = '<a class="h4 mx-4" href="'. route('telegram.export', ['chat_id' => $chat_id]) . '/?day=yesterday">Xuất Excel</a>';
         } else {
-            $link = '<a class="h4 mx-4" href="'. route('telegram.history', ['chat_id' => $chat_id, 'd' => 'yesterday']) . '">Dữ liệu hôm qua</a>';
+            $fromDate = date('Y-m-d', time());
+            $toDate = date('Y-m-d', time());
+            $link = '<a class="h4 mx-4" href="'. route('telegram.history', ['chat_id' => $chat_id]) . '/?day=yesterday">Dữ liệu hôm qua</a>';
+            $exportUrl = '<a class="h4 mx-4" href="'. route('telegram.export', ['chat_id' => $chat_id]) . '">Xuất Excel</a>';
         }
-        $chat_title = Chat::find($chat_id)->title;
+
+        $chat = Chat::find($chat_id);
 
         $shifts = Chat::find($chat_id)->work_shifts()
             ->whereBetween('start_time', [$fromDate . ' 00:00:00', $toDate . ' 23:59:59'])
@@ -62,7 +65,8 @@ class TransactionController extends Controller
             'history',
             [
                 'link'               => $link,
-                'chat_title'         => $chat_title,
+                'exportUrl'          => $exportUrl,
+                'chat'               => $chat,
                 'deposit_count'      => $deposit_count,
                 'issued_count'       => $issued_count,
                 'deposits_per_shift' => $deposits_per_shift,

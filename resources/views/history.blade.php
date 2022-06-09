@@ -1,7 +1,3 @@
-<?php
-
-?>
-
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
@@ -27,11 +23,11 @@
     <body>
         <div class="container justify-center min-h-screen">
             <div class="my-4 d-flex">
-                <h4>Nhóm {{ $chat_title }}</h4>
+                <h4>Nhóm {{ $chat->title }}</h4>
                 <div class="ms-auto d-flex">
                     <h4>{{ date("l, Y-m-d", time()) }}</h4>
                     {!! $link !!}
-                    <a href="#" class="h4 mx-4">Xuất Excel</a>
+                    {!! $exportUrl !!}
                 </div>
             </div>
             <div class="card">

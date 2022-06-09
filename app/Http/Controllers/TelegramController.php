@@ -186,20 +186,18 @@ class TelegramController extends Controller
                 ]);
 
             } else {
-                $params = [
+                $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
                     'text'      => 'Phiên chưa bắt đầu hoặc có lỗi xảy ra.',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
+                ]);
             }
 
         } else {
             // Sent Reject Message
-            $params = [
+            $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
                 'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
-            ];
-            $response = Telegram::bot()->sendMessage($params);
+            ]);
         }
     }
 
@@ -417,11 +415,10 @@ class TelegramController extends Controller
             $shift_id = $this->get_current_shift_id($chat_id);
 
             if ( $shift_id === null ) {
-                $params = [
+                $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
                     'text'      => 'Phiên chưa bắt đầu.',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
+                ]);
                 die();
             }
 
@@ -442,11 +439,10 @@ class TelegramController extends Controller
 
         } else {
             // Sent Reject Message
-            $params = [
+            $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
                 'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
-            ];
-            $response = Telegram::bot()->sendMessage($params);
+            ]);
         }
     }
 
@@ -464,11 +460,10 @@ class TelegramController extends Controller
             $shift_id = $this->get_current_shift_id($chat_id);
 
             if ( $shift_id === null ) {
-                $params = [
+                $response = Telegram::bot()->sendMessage([
                     'chat_id'   => $chat_id,
                     'text'      => 'Phiên chưa bắt đầu.',
-                ];
-                $response = Telegram::bot()->sendMessage($params);
+                ]);
                 die();
             }
 
@@ -489,11 +484,10 @@ class TelegramController extends Controller
 
         } else {
             // Sent Reject Message
-            $params = [
+            $response = Telegram::bot()->sendMessage([
                 'chat_id'   => $chat_id,
                 'text'      => 'Bạn không có quyền hạn thực hiện hành động này.',
-            ];
-            $response = Telegram::bot()->sendMessage($params);
+            ]);
         }
     }
 

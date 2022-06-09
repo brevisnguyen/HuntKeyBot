@@ -11,8 +11,9 @@
         "laravel/framework": "^8.75",
         "laravel/sanctum": "^2.11",
         "laravel/tinker": "^2.5",
-        "telegram-bot-sdk/telegram-bot-sdk": "dev-master",
-        "telegram-bot-sdk/laravel": "^4.0"
+        "maatwebsite/excel": "^3.1",
+        "telegram-bot-sdk/laravel": "^4.0",
+        "telegram-bot-sdk/telegram-bot-sdk": "dev-master"
     },
     "require-dev": {
         "barryvdh/laravel-ide-helper": "^2.12",

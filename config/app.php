@@ -166,6 +166,7 @@ return [
          * Package Service Providers...
          */
         Telegram\Bot\Laravel\TelegramServiceProvider::class,
+        Maatwebsite\Excel\ExcelServiceProvider::class,
 
         /*
          * Application Service Providers...
@@ -232,6 +233,7 @@ return [
         'View' => Illuminate\Support\Facades\View::class,
 
         'Telegram' => Telegram\Bot\Laravel\Facades\Telegram::class,
+        'Excel' => Maatwebsite\Excel\Facades\Excel::class,
 
     ],
 

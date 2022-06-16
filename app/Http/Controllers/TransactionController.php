@@ -36,6 +36,7 @@ class TransactionController extends Controller
         $deposits_amount = 0;
         $issueds = [];
         $issueds_amount = 0;
+        $rate = 0;
         foreach ( $shifts as $shift ) {
             $list_deposit = $shift->deposits()->with('user')->with('work_shift')->get();
             $list_issued = $shift->issueds()->with('user')->with('work_shift')->get();
@@ -47,6 +48,7 @@ class TransactionController extends Controller
                 array_push($issueds, $issued);
                 $issueds_amount += $issued->amount;
             }
+            $rate = $shift->rate;
         }
 
         return view(
@@ -57,6 +59,7 @@ class TransactionController extends Controller
                 'chat'              => $chat,
                 'deposits'          => $deposits,
                 'deposits_amount'   => $deposits_amount,
+                'rate'              => $rate,
                 'issueds'           => $issueds,
                 'issueds_amount'    => $issueds_amount,
             ]

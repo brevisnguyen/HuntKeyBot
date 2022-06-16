@@ -96,23 +96,28 @@
                         <tbody>
                             <tr>
                                 <th scope="row">1</th>
-                                <td>入款总数</td>
-                                <td>{{ count($deposits) }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">2</th>
                                 <td>入款总计</td>
                                 <td>{{ $deposits_amount }}</td>
                             </tr>
                             <tr>
+                                <th scope="row">2</th>
+                                <td>费率</td>
+                                <td>{{ $rate }}</td>
+                            </tr>
+                            <tr>
                                 <th scope="row">3</th>
-                                <td>下发总数</td>
-                                <td>{{ count($issueds) }}</td>
+                                <td>应下发</td>
+                                <td>{{ $deposits_amount * (1 - ($rate / 100)) }}</td>
                             </tr>
                             <tr>
                                 <th scope="row">4</th>
+                                <td>总下发</td>
+                                <td>{{ $issueds_amount }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">5</th>
                                 <td>未下发</td>
-                                <td>{{ $deposits_amount - $issueds_amount }}</td>
+                                <td>{{ ($deposits_amount * (1 - ($rate / 100))) - $issueds_amount }}</td>
                             </tr>
                         </tbody>
                     </table>

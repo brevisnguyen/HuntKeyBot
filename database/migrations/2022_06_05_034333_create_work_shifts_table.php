@@ -18,6 +18,7 @@ class CreateWorkShiftsTable extends Migration
             $table->bigInteger('chat_id');
             $table->boolean('is_start')->default(false);
             $table->boolean('is_end')->default(false);
+            $table->double('rate')->default(0);
             $table->dateTime('start_time')->nullable();
             $table->dateTime('stop_time')->nullable();
 

@@ -43,6 +43,7 @@ class WorkShift extends Model
 
 	protected $casts = [
 		'chat_id' => 'int',
+		'rate' => 'float',
 		'is_start' => 'bool',
 		'is_end' => 'bool'
 	];
@@ -54,6 +55,7 @@ class WorkShift extends Model
 
 	protected $fillable = [
 		'chat_id',
+		'rate',
 		'is_start',
 		'is_end',
 		'start_time',

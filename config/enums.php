@@ -4,7 +4,7 @@ return [
     
     'admin'     => [
         'name' => 'admin',
-        'roles' => ['start', 'stop', 'clear', 'grant', 'revoke', 'deposit', 'issued'],
+        'roles' => ['start', 'stop', 'clear', 'grant', 'revoke', 'deposit', 'issued', 'rate'],
     ],
     'operator'  => [
         'name' => 'operator',

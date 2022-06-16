@@ -23,6 +23,7 @@ class TelegramController extends Controller
         'revoke'    => '/(?<=^删除操作人)\s+?@(?P<user_name>\w+)$/',
         'deposit'   => '/^入款\s?(?P<deposit_amount>\d+?)$/',
         'issued'    => '/^下发\s?(?P<issued_amount>\d+?)$/',
+        'rate'      => '/(?<=^设置费率)\s?(?P<rate>\d+(?:\.\d+)?%)$/',
     ];
 
     /**
@@ -73,6 +74,9 @@ class TelegramController extends Controller
                         case 'issued':
                             $this->issued($user, $chat->id, $matches['issued_amount']);
                             break;
+                        case 'rate':
+                            $this->rate($user->username, $chat->id, $matches['rate']);
+                            break;
                         default:
                             # code...
                             break;
@@ -119,6 +123,45 @@ class TelegramController extends Controller
     }
 
     /**
+     * Set Rate
+     * @param str $username
+     * @param int $chat_id
+     */
+    public function rate($username, $chat_id, $rate)
+    {
+        if ( in_array('rate', $this->get_allowed_method($username, $chat_id)) ) {
+            $shift = Chat::find($chat_id)
+                ->work_shifts()
+                ->whereIsStart(true)
+                ->whereIsEnd(false)
+                ->first();
+
+            if ( $shift ) {
+                $rate = floatval($rate);
+                $shift->rate = $rate;
+                $shift->save();
+
+                $response = Telegram::bot()->sendMessage([
+                    'chat_id'   => $chat_id,
+                    'text'      => '设置成功！',
+                ]);
+
+            } else {
+                $response = Telegram::bot()->sendMessage([
+                    'chat_id'   => $chat_id,
+                    'text'      => '记录今天账单还没开始。',
+                ]);
+            }
+        } else {
+            // Sent Reject Message
+            $response = Telegram::bot()->sendMessage([
+                'chat_id'   => $chat_id,
+                'text'      => '你没有权限啦。',
+            ]);
+        }
+    }
+
+    /**
      * Start Recording Transaction For This Day
      * @param str $username
      * @param int $chat_id
@@ -143,6 +186,7 @@ class TelegramController extends Controller
                 $new_shift = Chat::find($chat_id)->work_shifts()->create([
                     'is_start'   => true,
                     'is_stop'    => false,
+                    'rate'       => 0,
                     'start_time' => date("Y-m-d H:i:s", time())
                 ]);
 
@@ -349,29 +393,6 @@ class TelegramController extends Controller
     }
 
     /**
-     * Retrieving User
-     * @param int id
-     * @return User
-     */
-    public function getUser($id)
-    {
-        $key = 'telegram_user_' . $id;
-        
-        if ( Cache::has($key) ) {
-
-            return Cache::get($key);
-
-        } else {
-            $user = User::find($id);
-            if ( $user !== null ) {
-                Cache::forever('telegram_user_' . $user->id, $user);
-
-                return $user;
-            }
-        }
-    }
-
-    /**
      * Set Chat
      * @param Chat $obj_chat
      */
@@ -381,24 +402,6 @@ class TelegramController extends Controller
             [ 'id' =>  $obj_chat->id ],
             [ 'type' => $obj_chat->type, 'title' => $obj_chat->title, 'username' => $obj_chat->username ]
         );
-    }
-
-    /**
-     * Retrieving Chat
-     * @param int id
-     * @return Chat
-     */
-    public function getChat($id)
-    {
-        $key = 'telegram_chat_' . $id;
-        
-        if ( Cache::has($key) ) {
-            return Cache::get($key);
-        } else {
-            $chat = Chat::find($id);
-            Cache::forever($key, $chat);
-            return $chat;
-        }
     }
 
     /**
@@ -496,8 +499,9 @@ class TelegramController extends Controller
      */
     public function balance($shift_id, $chat_id)
     {
-        $deposits = WorkShift::find($shift_id)->deposits()->latest()->get();
-        $issueds = WorkShift::find($shift_id)->issueds()->latest()->get();
+        $shift = WorkShift::find($shift_id);
+        $deposits = $shift->deposits()->latest()->get();
+        $issueds = $shift->issueds()->latest()->get();
 
         $total_deposit = count($deposits);
         $total_issued = count($issueds);
@@ -525,8 +529,13 @@ class TelegramController extends Controller
         }
 
         $url = '<a href="'. route('telegram.history', ['chat_id' => $chat_id]) . '">点击跳转完整账单</a>';
-        $not_issued = $amount_deposit - $amount_issued;
-        $text_statistic = '<b>应下发：' . $amount_deposit . '</b>' . '
+        $rate = $shift->rate;
+        $rate = floatval($rate);
+        $issued_available = $amount_deposit * (1 - ($rate / 100));
+        $not_issued = $issued_available - $amount_issued;
+        $text_statistic = '<b>总入款：' . $amount_deposit . '</b>' . '
+' . '<b>费率：'   . $rate . '%</b>' .'
+' . '<b>应下发：' . $issued_available . '</b>' . '
 ' . '<b>总下发：' . $amount_issued .'</b>' . '
 ' . '<b>未下发：' . $not_issued . '</b>';
 

@@ -112,6 +112,18 @@ class TelegramController extends Controller
             $left_chat = $message->chat;
             $left_member = $message->left_chat_member;
 
+            $record = UserChat::whereChatId($left_chat->id)->delete();
+            $shift = Chat::find($left_chat->id)
+                ->work_shifts()
+                ->whereIsStart(true)
+                ->whereIsEnd(false)
+                ->first();
+            if ( $shift ) {
+                $shift->is_end = true;
+                $shift->stop_time = date("Y-m-d H:i:s", time());
+                $shift->save();
+            }
+
             if ( $left_member->is_bot && $left_member->id == env('TELEGRAM_BOT_ID') ) {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id' => $admin->id,

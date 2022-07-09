@@ -21,8 +21,8 @@ class TelegramController extends Controller
         'clear'     => '/^(clear)^/',
         'grant'     => '/(?<=^设置操作人)\s+?@(?P<user_name>\w+)$/',
         'revoke'    => '/(?<=^删除操作人)\s+?@(?P<user_name>\w+)$/',
-        'deposit'   => '/^入款\s?(?P<deposit_amount>\d+?)$/',
-        'issued'    => '/^下发\s?(?P<issued_amount>\d+?)$/',
+        'deposit'   => '/^入款\s?(?P<deposit_amount>-?\d+?)$/',
+        'issued'    => '/^下发\s?(?P<issued_amount>-?\d+?)$/',
         'rate'      => '/(?<=^设置费率)\s?(?P<rate>\d+(?:\.\d+)?%)$/',
     ];
 
@@ -52,7 +52,7 @@ class TelegramController extends Controller
             foreach ( $this->triggers as $key => $trigger ) {
                 // $this->run($trigger, $text, $entities);
                 $isMatch = preg_match($trigger, $text, $matches);
-                if ( $isMatch == 1) {
+                if ( $isMatch == 1 && $user->username != '' ) {
                     $this->setUser($user);
 
                     switch ($key) {
@@ -82,8 +82,13 @@ class TelegramController extends Controller
                             break;
                     }
                         
-                } elseif ( $isMatch === false ) {
-                // Send Error To Bot's Boss
+                } elseif ( $isMatch == 1 && $user->username == '' ) {
+                    // User have not username
+                    $response = Telegram::bot()->sendMessage([
+                        'chat_id' => $chat->id,
+                        'text' => '你还没设定用户名，不能发指令。',
+                    ]);
+                    break;
                 }
             }
         } elseif ( $message->objectType() === 'new_chat_members' ) {
@@ -127,9 +132,15 @@ class TelegramController extends Controller
             if ( $left_member->is_bot && $left_member->id == env('TELEGRAM_BOT_ID') ) {
                 $response = Telegram::bot()->sendMessage([
                     'chat_id' => $admin->id,
-                    'text' => 'Xin lỗi vì đã làm bạn thất vọng. Nếu muốn tôi quay lại hay thêm <a href="https://t.me/' . $left_member->username . '">@' . $left_member->username . '</a> vào nhóm nhé.',
+                    'text' => 'Xin lỗi vì đã làm bạn thất vọng. Nếu muốn tôi quay lại hãy thêm <a href="https://t.me/' . $left_member->username . '">@' . $left_member->username . '</a> vào nhóm nhé.',
                     'parse_mode' => 'HTML',
                 ]);
+            } else {
+                $username = $left_member->username == "" ? "" : $left_member->username;
+                $key = 'huntkey_bot_relationship_' . $username . '_in_' . $left_chat->id;
+                if ( Cache::has($key) ) {
+                    Cache::forget($key);
+                }
             }
         }
     }

@@ -29,17 +29,53 @@ use Illuminate\Database\Eloquent\Model;
  * @method static \Illuminate\Database\Eloquent\Builder|User whereLastName($value)
  * @method static \Illuminate\Database\Eloquent\Builder|User whereUsername($value)
  * @mixin \Eloquent
+ * @property-read Collection|\App\Models\Chat[] $chats
+ * @property-read int|null $chats_count
  */
 class User extends Model
 {
-	protected $table = 'users';
-	public $incrementing = false;
-	public $timestamps = false;
+	/**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'users';
 
-	protected $casts = [
-		'id' => 'int'
-	];
+	/**
+     * Indicates if the model should be timestamped.
+     *
+     * @var bool
+     */
+    public $timestamps = false;
 
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [];
+
+    /**
+     * Indicates if the model's ID is auto-incrementing.
+     *
+     * @var bool
+     */
+    public $incrementing = false;
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'id' => 'int',
+    ];
+
+	/**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
 	protected $fillable = [
 		'id',
 		'username',
@@ -59,6 +95,6 @@ class User extends Model
 
 	public function chats()
 	{
-		return $this->belongsToMany(Chat::class, 'user_chats', 'username', 'chat_id');
+		return $this->belongsToMany(Chat::class)->withPivot('role');
 	}
 }

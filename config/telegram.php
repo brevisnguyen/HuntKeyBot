@@ -13,7 +13,7 @@ return [
      *
      */
 
-    'use' => 'default',
+    'use' => 'huntkey',
 
     /**
      *--------------------------------------------------------------------------
@@ -45,7 +45,7 @@ return [
      */
 
     'bots' => [
-        'default' => [
+        'huntkey' => [
             'token'    => env('TELEGRAM_BOT_TOKEN', 'YOUR-BOT-TOKEN'),
 
             'commands' => [
@@ -96,7 +96,7 @@ return [
     'webhook' => [
         'domain'     => env('TELEGRAM_WEBHOOK_DOMAIN', null),
         'path'       => env('TELEGRAM_WEBHOOK_PATH', 'telegram'),
-        'controller' => \Telegram\Bot\Laravel\Http\Controllers\WebhookController::class,
+        'controller' => App\Http\Controllers\HuntKeyBotController::class,
     ],
 
     /**

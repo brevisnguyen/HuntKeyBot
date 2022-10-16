@@ -29,32 +29,68 @@ use Illuminate\Database\Eloquent\Model;
  * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereShiftId($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereUserId($value)
  * @mixin \Eloquent
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Models\Shift $shift
+ * @method static \Illuminate\Database\Eloquent\Builder|Deposit whereUpdatedAt($value)
  */
 class Deposit extends Model
 {
+	/**
+     * The table associated with the model.
+     *
+     * @var string
+     */
 	protected $table = 'deposits';
-	public $timestamps = false;
 
+	/**
+     * Indicates if the model should be timestamped.
+     *
+     * @var bool
+     */
+    public $timestamps = true;
+
+	/**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [];
+
+	/**
+     * Indicates if the model's ID is auto-incrementing.
+     *
+     * @var bool
+     */
+    public $incrementing = true;
+
+	/**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
 	protected $casts = [
-		'user_id' => 'int',
-		'shift_id' => 'int',
-		'amount' => 'float'
+		'user_id' 	=> 'int',
+		'shift_id' 	=> 'int',
+		'amount' 	=> 'float'
 	];
 
-	protected $fillable = [
-		'user_id',
-		'shift_id',
-		'amount',
-		'created_at'
-	];
+	/**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+	protected $fillable = ['user_id', 'shift_id', 'amount', 'created_at', 'updated_at'];
 
-	public function work_shift()
+	/**
+     * One To Many (Inverse) / Belongs To
+     */
+	public function shift()
 	{
-		return $this->belongsTo(WorkShift::class, 'shift_id');
+		return $this->belongsTo(Shift::class);
 	}
 
 	public function user()
 	{
-		return $this->belongsTo(User::class, 'user_id', 'id');
+		return $this->belongsTo(User::class);
 	}
 }

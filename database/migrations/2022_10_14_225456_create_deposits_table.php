@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateIssuedsTable extends Migration
+class CreateDepositsTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,16 +13,15 @@ class CreateIssuedsTable extends Migration
      */
     public function up()
     {
-        Schema::create('issueds', function (Blueprint $table) {
+        Schema::create('deposits', function (Blueprint $table) {
             $table->id();
             $table->bigInteger('user_id');
-            $table->bigInteger('shift_id')->unsigned();
+            $table->unsignedBigInteger('shift_id');
             $table->double('amount');
-            $table->dateTime('created_at')->nullable();
+            $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onUpdate('cascade')->onDelete('cascade');
-            $table->foreign('shift_id')->references('id')->on('work_shifts')->onUpdate('cascade')->onDelete('cascade');
-            $table->index('shift_id');
+            $table->foreign('shift_id')->references('id')->on('shifts')->onUpdate('cascade')->onDelete('cascade');
         });
     }
 
@@ -33,6 +32,6 @@ class CreateIssuedsTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('issueds');
+        Schema::dropIfExists('deposits');
     }
 }

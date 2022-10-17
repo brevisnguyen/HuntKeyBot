@@ -8,6 +8,7 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 /**
  * Class Issued
@@ -35,6 +36,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Issued extends Model
 {
+     use HasFactory;
+
 	/**
      * The table associated with the model.
      *

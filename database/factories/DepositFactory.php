@@ -2,18 +2,18 @@
 
 namespace Database\Factories;
 
+use App\Models\Deposit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Str;
 
-class UserFactory extends Factory
+class DepositFactory extends Factory
 {
     /**
      * The name of the factory's corresponding model.
      *
      * @var string
      */
-    protected $model = User::class;
+    protected $model = Deposit::class;
 
     /**
      * Define the model's default state.
@@ -23,10 +23,10 @@ class UserFactory extends Factory
     public function definition()
     {
         return [
-            'id' => $this->faker->numberBetween(5000000000, 5999999999),
-            'username' => $this->faker->userName(),
-            'first_name' => $this->faker->firstName(),
-            'last_name' => $this->faker->lastName(),
+            'user_id' => User::factory(),
+            'amount' => $this->faker->randomFloat(2, 990, 6900),
+            'created_at' => $this->faker->dateTimeBetween('-1 week', '+1 week'),
+            'updated_at' => $this->faker->dateTimeBetween('-1 week', '+1 week'),
         ];
     }
 }

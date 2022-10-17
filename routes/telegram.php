@@ -1,10 +1,10 @@
 <?php
 
+use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 use Telegram\Bot\Laravel\Facades\Telegram;
 use Telegram\Bot\Laravel\Http\Middleware\ValidateWebhook;
 use Illuminate\Support\Str;
-use Telegram\Bot\BotManager;
 
 Route::group(
     [
@@ -12,8 +12,6 @@ Route::group(
         'middleware' => ValidateWebhook::class,
         'prefix' => config('telegram.webhook.path')
     ], function() {
-
-    Route::get('/hihi', function() {return 'ok';});
 
     Route::post('/{token}/{bot}', config('telegram.webhook.controller'))->name('telegram.bot.webhook');
 
@@ -25,6 +23,11 @@ Route::group(
         'middleware' => 'web',
     ],
     function() {
+        Route::group(['prefix' => 'chats'], function() {
+            Route::get('/{chat_id}', [TransactionController::class, 'index'])->name('telegram.chats.index');
+            Route::post('/{chat_id}/export', [TransactionController::class, 'export'])->name('telegram.chats.export');
+        });
+
         Route::get('/setWebhook/{bot}', function($bot_name) {
 
             $bot = Telegram::bot($bot_name);

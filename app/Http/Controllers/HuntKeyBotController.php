@@ -194,6 +194,7 @@ class HuntKeyBotController extends Controller
     }
 
     /**
+     * User info handle
      * @param TeleUser $sender
      * @param int $chat_id
      */
@@ -222,6 +223,11 @@ class HuntKeyBotController extends Controller
         }
     }
 
+    /**
+     * Start shift
+     * @param int $chat_id
+     * @param int $user_id
+     */
     public function startRecords($chat_id, $user_id)
     {
         if ( $this->isAdmin($chat_id, $user_id) ) {
@@ -255,6 +261,11 @@ class HuntKeyBotController extends Controller
         }
     }
 
+    /**
+     * Stop shift
+     * @param int $chat_id
+     * @param int $user_id
+     */
     public function stopRecords($chat_id, $user_id)
     {
         if ( $this->isAdmin($chat_id, $user_id) ) {
@@ -287,6 +298,12 @@ class HuntKeyBotController extends Controller
         }
     }
 
+    /**
+     * Set rate to current shift
+     * @param int $chat_id
+     * @param int $user_id
+     * @param float $rate
+     */
     public function rateHandle($chat_id, $user_id, $rate)
     {
         if ( $this->isAdmin($chat_id, $user_id) ) {
@@ -316,6 +333,12 @@ class HuntKeyBotController extends Controller
         }
     }
 
+    /**
+     * Perform when has new deposit action
+     * @param int $chat_id
+     * @param int $user_id
+     * @param float $amount
+     */
     public function depositHandle($chat_id, $user_id, $amount)
     {
         if ( $this->isOperator($chat_id, $user_id) ) {
@@ -341,6 +364,12 @@ class HuntKeyBotController extends Controller
         }
     }
 
+    /**
+     * Perform when has new issued action
+     * @param int $chat_id
+     * @param int $user_id
+     * @param float $amount
+     */
     public function issuedHandle($chat_id, $user_id, $amount)
     {
         if ( $this->isOperator($chat_id, $user_id) ) {
@@ -366,6 +395,11 @@ class HuntKeyBotController extends Controller
         }
     }
 
+    /**
+     * Perform statistics when deposit or issued handled
+     * @param int $shift_id
+     * @param int $chat_id
+     */
     public function statisticHandle($shift_id, $chat_id)
     {
         $shift = Shift::find($shift_id);
@@ -402,18 +436,28 @@ class HuntKeyBotController extends Controller
                 'reply_markup' => (new InlineKeyboardMarkup())
                     ->row(new InlineKeyboardButton([
                         'text' => "📝点击跳转完整账单",
-                        'url' => route('telegram.history', ['chat_id' => $chat_id]),
+                        'url' => route('telegram.chats.index', ['chat_id' => $chat_id]),
                     ])),
             ]);
         }
     }
 
+    /**
+     * Determine if user has admin role
+     * @param int $chat_id
+     * @param int $user_id
+     */
     public function isAdmin($chat_id, $user_id)
     {
         $data = DB::table('chat_user')->where([ ['chat_id', $chat_id], ['user_id', $user_id] ])->first(['role']);
         return (!is_null($data) && $data->role === 'admin') ? TRUE : FALSE;
     }
 
+    /**
+     * Determine if user has operator role
+     * @param int $chat_id
+     * @param int $user_id
+     */
     public function isOperator($chat_id, $user_id)
     {
         $data = DB::table('chat_user')->where([ ['chat_id', $chat_id], ['user_id', $user_id] ])->first(['role']);
@@ -421,6 +465,7 @@ class HuntKeyBotController extends Controller
     }
 
     /**
+     * Grant operator role to user
      * @param int $chat_id
      * @param TeleUser|string $user
      * @param boolean $dummy
@@ -470,6 +515,7 @@ class HuntKeyBotController extends Controller
     }
 
     /**
+     * Revoke operator role from user
      * @param int $chat_id
      * @param int|string $user
      * @param boolean $dummy
@@ -506,6 +552,10 @@ class HuntKeyBotController extends Controller
         }
     }
 
+    /**
+     * Get current active shift in chat
+     * @param int $chat_id
+     */
     public function getCurrentShiftId($chat_id)
     {
         $shift = Shift::where([

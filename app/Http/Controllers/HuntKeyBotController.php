@@ -307,10 +307,11 @@ class HuntKeyBotController extends Controller
     public function rateHandle($chat_id, $user_id, $rate)
     {
         if ( $this->isAdmin($chat_id, $user_id) ) {
-            $shift_id = $this->getCurrentShiftId($chat_id);
+            $shift = $this->getCurrentShift($chat_id);
 
-            if ( $shift_id ) {
-                Shift::find($shift_id)->update(['rate' => floatval($rate)]);
+            if ( $shift ) {
+                $shift->rate = floatval($rate) > 0 ? floatval($rate) : 1;
+                $shift->save();
 
                 $this->activeBot->sendMessage([
                     'chat_id' => $chat_id,
@@ -342,18 +343,19 @@ class HuntKeyBotController extends Controller
     public function depositHandle($chat_id, $user_id, $amount)
     {
         if ( $this->isOperator($chat_id, $user_id) ) {
-            $shift_id = $this->getCurrentShiftId($chat_id);
+            $shift = $this->getCurrentShift($chat_id);
 
-            if ( $shift_id ) {
+            if ( $shift ) {
                 DB::table('deposits')->insert([
                     'user_id' => $user_id,
-                    'shift_id' => $shift_id,
-                    'amount' => $amount,
+                    'shift_id' => $shift->id,
+                    'gross' => $amount,
+                    'net' => floatval($amount) * (1 - ($shift->rate / 100)),
                     'created_at' => date('Y-m-d H:i:s', time()),
                     'updated_at' => date('Y-m-d H:i:s', time()),
                 ]);
 
-                $this->statisticHandle($shift_id, $chat_id);
+                $this->statisticHandle($shift->id, $chat_id);
             }
         } else {
             $this->activeBot->sendMessage([
@@ -373,18 +375,18 @@ class HuntKeyBotController extends Controller
     public function issuedHandle($chat_id, $user_id, $amount)
     {
         if ( $this->isOperator($chat_id, $user_id) ) {
-            $shift_id = $this->getCurrentShiftId($chat_id);
+            $shift = $this->getCurrentShift($chat_id);
 
-            if ( $shift_id ) {
+            if ( $shift ) {
                 DB::table('issueds')->insert([
                     'user_id' => $user_id,
-                    'shift_id' => $shift_id,
+                    'shift_id' => $shift->id,
                     'amount' => $amount,
                     'created_at' => date('Y-m-d H:i:s', time()),
                     'updated_at' => date('Y-m-d H:i:s', time()),
                 ]);
 
-                $this->statisticHandle($shift_id, $chat_id);
+                $this->statisticHandle($shift->id, $chat_id);
             }
         } else {
             $this->activeBot->sendMessage([
@@ -405,27 +407,31 @@ class HuntKeyBotController extends Controller
         $shift = Shift::find($shift_id);
 
         if ( $shift ) {
-            $deposit_sum = Shift::withSum('deposits', 'amount')->where('id', $shift->id)->first()->deposits_sum_amount;
-            $issued_sum = Shift::withSum('issueds', 'amount')->where('id', $shift->id)->first()->issueds_sum_amount;
+            $deposits = DB::table('deposits')->where('shift_id', $shift->id)
+                ->join('users', 'deposits.user_id', '=', 'users.id')
+                ->orderByDesc('created_at');
+            $issueds = DB::table('issueds')->where('shift_id', $shift->id)
+                ->join('users', 'issueds.user_id', '=', 'users.id')
+                ->orderByDesc('created_at');
 
-            $deposits = Deposit::whereBelongsTo($shift)->orderByDesc('id')->get();
-            $issueds = Issued::whereBelongsTo($shift)->orderByDesc('id')->get();
-
-            $content = "*入款（". count($deposits) ."笔）*\n";
-            foreach ( $deposits->take(4) as $deposit ) {
-                $content .= "`{$deposit->created_at}`：*{$deposit->amount}*\n";
+            $content = "*入款（". $deposits->count() ."笔）*\n";
+            foreach ( $deposits->take(4)->get() as $deposit ) {
+                $created_at = date_create_from_format('Y-m-d H:i:s', $deposit->created_at);
+                $created_at = $created_at->format('H:i:s');
+                $content .= "`{$deposit->first_name} {$created_at}`：*{$deposit->gross}*\n";
             }
-            $content .= "*下发（". count($deposits) ."笔）*\n";
-            foreach ( $issueds->take(4) as $issued ) {
-                $content .= "`{$issued->created_at}` ：*{$issued->amount}*\n";
+            $content .= "*下发（". $issueds->count() ."笔）*\n";
+            foreach ( $issueds->take(4)->get() as $issued ) {
+                $created_at = date_create_from_format('Y-m-d H:i:s', $deposit->created_at);
+                $created_at = $created_at->format('H:i:s');
+                $content .= "`{$issued->first_name} {$created_at}` ：*{$issued->amount}*\n";
             }
 
-            $issued_available = $deposit_sum * (1 - floatval($shift->rate) / 100);
-            $content .= "*总入款：*{$deposit_sum}\n";
-            $content .= "*费率：*{$shift->rate}%\n";
-            $content .= "*应下发：*" . $issued_available . "\n";
-            $content .= "*总下发：*{$issued_sum}\n";
-            $content .= "*未下发：*" . ($issued_available - $issued_sum);
+            $content .= "*总入款：*". $deposits->sum('gross') ."\n";
+            $content .= "*费率：*". $shift->rate ."%\n";
+            $content .= "*应下发：*" . $deposits->sum('net') . "\n";
+            $content .= "*总下发：*". $issueds->sum('amount') ."\n";
+            $content .= "*未下发：*" . ($deposits->sum('net') - $issueds->sum('amount'));
 
             $content = str_replace([".", "-"], ["\.", "\-"], $content);
 
@@ -556,14 +562,14 @@ class HuntKeyBotController extends Controller
      * Get current active shift in chat
      * @param int $chat_id
      */
-    public function getCurrentShiftId($chat_id)
+    public function getCurrentShift($chat_id)
     {
         $shift = Shift::where([
             ['chat_id', $chat_id],
             ['is_start', TRUE],
             ['is_end', FALSE],
         ])->first();
-        return is_null($shift) ? null : $shift->id;
+        return is_null($shift) ? null : $shift;
     }
 
     /**

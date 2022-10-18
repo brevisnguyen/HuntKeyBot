@@ -1,5 +1,3 @@
-<p align="center"><a href="https://github.com/brevis-ng/HuntKeyBot" target="_blank"><img src="https://raw.githubusercontent.com/brevis-ng/HuntKeyBot/master/storage/app/public/alex-knight-unsplash.jpg" width="250"></a></p>
-
 ## HuntKey Bot
 
 HuntKey là một Telegram Bot được xây dựng hỗ trợ việc thống kê giao dịch, xuất excel giao dịch hàng ngày. HuntKey cho phép đặt tỉ lệ hoa hồng mỗi giao dịch.

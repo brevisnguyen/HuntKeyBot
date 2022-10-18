@@ -1,5 +1,3 @@
-require('./bootstrap');
-
-require('./flowbite');
+// require('./bootstrap');
 
 require('./datepicker');

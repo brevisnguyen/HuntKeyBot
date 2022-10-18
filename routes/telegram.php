@@ -25,7 +25,7 @@ Route::group(
     function() {
         Route::group(['prefix' => 'chats'], function() {
             Route::get('/{chat_id}', [TransactionController::class, 'index'])->name('telegram.chats.index');
-            Route::post('/{chat_id}/export', [TransactionController::class, 'export'])->name('telegram.chats.export');
+            Route::get('/{chat_id}/export', [TransactionController::class, 'export'])->name('telegram.chats.export');
         });
 
         Route::get('/setWebhook/{bot}', function($bot_name) {

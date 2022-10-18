@@ -24,7 +24,8 @@ class DepositFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'amount' => $this->faker->randomFloat(2, 990, 6900),
+            'gross' => $this->faker->randomFloat(2, 990, 6900),
+            'net' => $this->faker->randomFloat(2, 990, 6900),
             'created_at' => $this->faker->dateTimeBetween('-1 week', '+1 week'),
             'updated_at' => $this->faker->dateTimeBetween('-1 week', '+1 week'),
         ];

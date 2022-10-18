@@ -95,11 +95,11 @@ class Chat extends Model
 
 	public function deposits()
 	{
-		return $this->hasManyThrough(Deposit::class, WorkShift::class, 'chat_id', 'shift_id');
+		return $this->hasManyThrough(Deposit::class, Shift::class, 'chat_id', 'shift_id');
 	}
 
 	public function issueds()
 	{
-		return $this->hasManyThrough(Issued::class, WorkShift::class, 'chat_id', 'shift_id');
+		return $this->hasManyThrough(Issued::class, Shift::class, 'chat_id', 'shift_id');
 	}
 }

@@ -16,7 +16,7 @@ class CreateShiftsTable extends Migration
         Schema::create('shifts', function (Blueprint $table) {
             $table->id();
             $table->bigInteger('chat_id');
-            $table->double('rate')->default(0);
+            $table->double('rate')->default(1);
             $table->boolean('is_start')->default(FALSE);
             $table->boolean('is_end')->default(FALSE);
             $table->timestamps();

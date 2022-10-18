@@ -17,7 +17,8 @@ class CreateDepositsTable extends Migration
             $table->id();
             $table->bigInteger('user_id');
             $table->unsignedBigInteger('shift_id');
-            $table->double('amount');
+            $table->double('gross');
+            $table->double('net');
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onUpdate('cascade')->onDelete('cascade');

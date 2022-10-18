@@ -72,9 +72,10 @@ class Deposit extends Model
      * @var array<string, string>
      */
 	protected $casts = [
-		'user_id' 	=> 'int',
-		'shift_id' 	=> 'int',
-		'amount' 	=> 'float'
+		'user_id' => 'int',
+		'shift_id' => 'int',
+		'gross' => 'float',
+		'net' => 'float'
 	];
 
 	/**
@@ -82,7 +83,7 @@ class Deposit extends Model
      *
      * @var array<int, string>
      */
-	protected $fillable = ['user_id', 'shift_id', 'amount', 'created_at', 'updated_at'];
+	protected $fillable = ['user_id', 'shift_id', 'gross', 'net', 'created_at', 'updated_at'];
 
 	/**
      * One To Many (Inverse) / Belongs To

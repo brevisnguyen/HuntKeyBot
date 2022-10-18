@@ -164,7 +164,7 @@ class HuntKeyBotController extends Controller
                 $usage .= "\n如果输入错误，可以用 `入款\-XXX` 或 `下发\-XXX`，来修正。";
                 $bot->sendMessage([
                     'chat_id' => $chat->id,
-                    'text' => "感谢[HIHI](tg://user?id=5192927761)让我加进群。\n".$usage,
+                    'text' => "感谢[". $bot_update->from->first_name ."](tg://user?id=". $bot_update->from->id .")让我加进群。\n".$usage,
                     'parse_mode' => 'MarkdownV2',
                 ]);
             } elseif ( $old_status == 'member' && $new_status == 'left' ) {
@@ -173,7 +173,11 @@ class HuntKeyBotController extends Controller
                     $chat->users()->detach();
                 }
 
-                // $this->endWorkShift($chat->id);
+                $shift = $this->getCurrentShift($chat->id);
+                if ( ! $shift ) {
+                    $shift->is_end = TRUE;
+                    $shift->save();
+                }
             }
         } elseif ( hash_equals('chat_member', $update->objectType()) ) {
             $new_chat_member = $update->chat_member->new_chat_member;
@@ -310,7 +314,7 @@ class HuntKeyBotController extends Controller
             $shift = $this->getCurrentShift($chat_id);
 
             if ( $shift ) {
-                $shift->rate = floatval($rate) > 0 ? floatval($rate) : 1;
+                $shift->rate = floatval($rate);
                 $shift->save();
 
                 $this->activeBot->sendMessage([
@@ -553,6 +557,15 @@ class HuntKeyBotController extends Controller
                     }
                 }
             } else {
+                $admins_count = DB::table('chat_user')->where('chat_id', $chat->id)->where('role', 'admin')->count();
+                if ( $this->isAdmin($chat->id, $user) && $admins_count == 1 ) {
+                    $this->activeBot->sendMessage([
+                        'chat_id' => $chat->id,
+                        'text' => "删除失败，最少需要群里有一个管理员！",
+                        'reply_to_message_id' => $this->activeMsgId
+                    ]);
+                    return;
+                }
                 $chat->users()->detach($user);
             }
         }

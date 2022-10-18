@@ -35,8 +35,8 @@ class DepositExport implements
     {
         $deposits = Chat::find($this->chat_id)
             ->deposits()
-            ->whereDate('created_at', $this->date)
-            ->with('user');
+            ->whereDate('deposits.created_at', $this->date)
+            ->with(['user', 'shift']);
         return $deposits;
     }
 
@@ -44,8 +44,10 @@ class DepositExport implements
     {
         return [
             $deposit->id,
-            $deposit->user->username,
-            $deposit->amount,
+            $deposit->user->first_name,
+            $deposit->gross,
+            $deposit->net,
+            $deposit->shift->rate,
             $deposit->created_at,
         ];
     }
@@ -55,7 +57,9 @@ class DepositExport implements
         return [
             'ID',
             '操作人',
-            '金额',
+            '总入款',
+            '净收入',
+            '费率',
             '时间',
         ];
     }
@@ -94,6 +98,16 @@ class DepositExport implements
                     'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
                 ],
             ],
+            'E' => [
+                'alignment' => [
+                    'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                ],
+            ],
+            'F' => [
+                'alignment' => [
+                    'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                ],
+            ],
         ];
     }
 
@@ -103,7 +117,9 @@ class DepositExport implements
             'A' => 15,
             'B' => 30,
             'C' => 25,
-            'D' => 40,
+            'D' => 25,
+            'E' => 15,
+            'F' => 40,
         ];
     }
 

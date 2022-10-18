@@ -35,17 +35,16 @@ class IssuedExport implements
     {
         $issueds = Chat::find($this->chat_id)
             ->issueds()
-            ->whereDate('created_at', $this->date)
+            ->whereDate('issueds.created_at', $this->date)
             ->with('user');
         return $issueds;
-        // return Issued::query()->whereDate('created_at', $this->date)->with('user');
     }
 
     public function map($issued): array
     {
         return [
             $issued->id,
-            $issued->user->username,
+            $issued->user->first_name,
             $issued->amount,
             $issued->created_at,
         ];

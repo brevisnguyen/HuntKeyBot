@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Telegram\Bot\Objects\Keyboard\InlineKeyboardButton;
 use Telegram\Bot\Objects\Keyboard\InlineKeyboardMarkup;
 use Telegram\Bot\Objects\User as TeleUser;
+use Telegram\Bot\Objects\Chat as TeleChat;
 use App\Exports\MultiSheetExport;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
@@ -51,7 +52,7 @@ class HuntKeyBotController extends Controller
                         $cmd = mb_substr( $text, $entity->offset, $entity->length, 'UTF-8' );
                         $cmd = ltrim($cmd, "/");
                         if ( method_exists(get_class($this), $cmd) && is_callable(array(get_class($this), $cmd)) ) {
-                            $this->$cmd($chat->id, $text);
+                            $this->$cmd(new TeleChat($chat), $text);
                         }
                     }
                 }
@@ -143,7 +144,7 @@ class HuntKeyBotController extends Controller
         }
     }
 
-    public function start($chat_id, $text = null)
+    public function start($chat, $text = null)
     {
         $usage = "\n*使用说明*\n设置费率：`设置费率X\.X%`\n设置操作人：`设置操作人 @xxxxx` @xxxx 设置群成员使用。先打空格再打@，会弹出选择更方便，可能加多个。\n删除操作人：`删除操作人 @xxxxx` 先输入“删除操作人” 然后空格，再打@，就出来了选择，这样更方便，可能删除多个。\n";
         $usage .= "\n*开始记录命令：*`开始`";
@@ -154,23 +155,44 @@ class HuntKeyBotController extends Controller
         $usage .= "\n如果输入错误，可以用 `入款\-XXX` 或 `下发\-XXX`，来修正。";
 
         $this->activeBot->sendMessage([
-            'chat_id' => $chat_id,
+            'chat_id' => $chat->id,
             'text' => $usage,
             'parse_mode' => 'MarkdownV2',
         ]);
     }
 
-    public function clear($chat_id, $text = null)
+    public function reload($chat_obj, $text = null)
     {
-        // DB::table('deposits')->truncate();
-        // DB::table('issueds')->truncate();
+        $chat = Chat::updateOrCreate(
+            ['id' => $chat_obj->id],
+            [
+                'type' => $chat_obj->get('type'),
+                'title' => $chat_obj->get('title'),
+                'username' => $chat_obj->get('username'),
+            ],
+        );
 
-        // DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        // DB::table('shifts')->truncate();
-        // DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        $admins = $this->activeBot->getChatAdministrators(['chat_id' => $chat->id]);
+
+        foreach ($admins as $admin) {
+            $record = User::updateOrCreate(
+                ['id' => $admin->user->id],
+                [
+                    'username' => $admin->user->username,
+                    'first_name' => $admin->user->first_name,
+                    'last_name' => $admin->user->last_name,
+                ],
+            );
+            $chat->users()->detach( $record->id );
+            $chat->users()->attach( $record->id, ['role' => 'admin'] );
+        }
+
+        Cache::flush();
+
+        $this->start($chat_obj);
     }
 
-    public function export($chat_id, $text = null)
+    public function export($chat_obj, $text = null)
     {
         $date = date('Y-m-d');
         $isMatch = preg_match('/^\/export\s*(?P<date>\d{4}-\d{1,2}-\d{1,2})/', $text, $matches);
@@ -179,7 +201,7 @@ class HuntKeyBotController extends Controller
         }
 
         try {
-            $chat = Chat::findOrFail($chat_id);
+            $chat = Chat::findOrFail($chat_obj->id);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             $this->reportBug($e->getMessage());
             return;

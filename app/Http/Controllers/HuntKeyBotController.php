@@ -6,14 +6,16 @@ use Illuminate\Http\Request;
 use Telegram;
 use App\Models\Chat;
 use App\Models\User;
-use App\Models\Deposit;
-use App\Models\Issued;
 use App\Models\Shift;
+use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Telegram\Bot\Objects\Keyboard\InlineKeyboardButton;
 use Telegram\Bot\Objects\Keyboard\InlineKeyboardMarkup;
 use Telegram\Bot\Objects\User as TeleUser;
+use App\Exports\MultiSheetExport;
+use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 date_default_timezone_set('Asia/Manila');
 
@@ -35,97 +37,38 @@ class HuntKeyBotController extends Controller
 
         if ( hash_equals('message', $update->objectType()) ) {
             $message = $update->getMessage();
+            $chat = $message->get('chat');
+            $from = $message->get('from');
+            $text = $message->get('text');
+            $entities = $message->get('entities');
+
+            if ( $message->has('entities') && str_starts_with($text, '/') ) {
+                foreach ( $entities as $entity ) {
+                    if ( $entity->type == 'bot_command' ) {
+                        $cmd = mb_substr( $text, $entity->offset, $entity->length, 'UTF-8' );
+                        $cmd = ltrim($cmd, "/");
+                        if ( method_exists(get_class($this), $cmd) && is_callable(array(get_class($this), $cmd)) ) {
+                            $this->$cmd($chat->id, $text);
+                        }
+                    }
+                }
+                return;
+            }
+
             $this->activeMsgId = $message->get('message_id');
-            $this->senderHandle(new TeleUser($message->from), $message->chat->id);
+            $this->senderHandle(new TeleUser($from), $chat->id);
 
-            if ( $message->has('entities') ) {
-                if ( preg_match(config('enums.triggers.grant'), $message->text, $matches) == 1 ) {
-                    if ( ! $this->isAdmin($message->chat->id, $message->from->id) ) {
-                        $bot->sendMessage([
-                            'chat_id'   => $message->chat->id,
-                            'text'      => '您没有权限啦。',
-                            'reply_to_message_id' => $message->message_id,
-                        ]);
-                        return;
-                    }
-                    foreach ( $message->get('entities') as $entity ) {
-                        if ( hash_equals('text_mention', $entity->type) ) {
+            foreach ( config('enums.triggers') as $key => $trigger ) {
 
-                            $this->grantRoles($message->chat->id, new TeleUser($entity->user));
+                $isMatch = preg_match($trigger, $text, $matches);
 
-                        } elseif ( hash_equals('mention', $entity->type) ) {
+                if ( $isMatch == 1 ) {
 
-                            $username = mb_substr( $message->text, $entity->offset, $entity->length, 'UTF-8' );
-                            $username = ltrim($username, '@');
-                            $this->grantRoles($message->chat->id, $username, true);
+                    $callbackFunc = config('enums.callback')[$key];
+                    $this->$callbackFunc($chat->id, $from->id, $matches, $entities, $text);
 
-                        }
-                    }
-                    $bot->sendMessage([
-                        'chat_id' => $message->chat->id,
-                        'text' => '设置操作人成功!',
-                        'reply_to_message_id' => $message->message_id
-                    ]);
-
-                } elseif ( preg_match(config('enums.triggers.revoke'), $message->text, $matches) == 1 ) {
-                    if ( ! $this->isAdmin($message->chat->id, $message->from->id) ) {
-                        $bot->sendMessage([
-                            'chat_id'   => $message->chat->id,
-                            'text'      => '您没有权限啦。',
-                        ]);
-                        return;
-                    }
-                    foreach ( $message->get('entities') as $entity ) {
-                        if ( hash_equals('text_mention', $entity->type) ) {
-
-                            $this->revokeRoles($message->chat->id, $entity->user->id);
-
-                        } else {
-
-                            $username = mb_substr( $message->text, $entity->offset, $entity->length, 'UTF-8' );
-                            $username = ltrim($username, '@');
-                            $this->revokeRoles($message->chat->id, $username, true);
-
-                        }
-                    }
-                    $bot->sendMessage([
-                        'chat_id' => $message->chat->id,
-                        'text' => '删除操作人成功!',
-                        'reply_to_message_id' => $message->message_id
-                    ]);
                 }
-            } else {
-                foreach ( config('enums.triggers') as $key => $trigger ) {
-                    $isMatch = preg_match($trigger, $message->text, $matches);
-                    if ( $isMatch == 1 ) {
-                        switch ($key) {
-                            case 'start':
-                                $this->startRecords($message->chat->id, $message->from->id);
-                                break;
-                            case 'stop':
-                                $this->stopRecords($message->chat->id, $message->from->id);
-                                break;
-                            case 'deposit':
-                                $this->depositHandle($message->chat->id, $message->from->id, $matches['amount']);
-                                break;
-                            case 'deposit_short':
-                                $this->depositHandle($message->chat->id, $message->from->id, $matches['amount']);
-                                break;
-                            case 'issued':
-                                $this->issuedHandle($message->chat->id, $message->from->id, $matches['amount']);
-                                break;
-                            case 'issued_short':
-                                $this->issuedHandle($message->chat->id, $message->from->id, $matches['amount']);
-                                break;
-                            case 'rate':
-                                $this->rateHandle($message->chat->id, $message->from->id, $matches['rate']);
-                                break;
-                            default:
-                                # code...
-                                break;
-                        }
-                    }
-                }
+
             }
 
         } elseif ( hash_equals('my_chat_member', $update->objectType()) ) {
@@ -156,11 +99,12 @@ class HuntKeyBotController extends Controller
                     $chat->users()->attach( $record->id, ['role' => 'admin'] );
                 }
 
-                $usage = "\n*使用说明*\n设置费率：`设置费率X\.X%`\n设置操作人：`设置操作人 @xxxxx` @xxxx 设置群成员使用。先打空格再打@，会弹出选择更方便。\n删除操作人：`删除操作人 @xxxxx` 先输入“删除操作人” 然后空格，再打@，就出来了选择，这样更方便\n";
+                $usage = "\n*使用说明*\n设置费率：`设置费率X\.X%`\n设置操作人：`设置操作人 @xxxxx` @xxxx 设置群成员使用。先打空格再打@，会弹出选择更方便，可能加多个。\n删除操作人：`删除操作人 @xxxxx` 先输入“删除操作人” 然后空格，再打@，就出来了选择，这样更方便，可能删除多个。\n";
                 $usage .= "\n*开始记录命令：*`开始`";
                 $usage .= "\n*结束记录命令：*`结束`";
                 $usage .= "\n*入款命令：*`入款XXX`或`\+XXX`";
-                $usage .= "\n*下发命令：*`下发XXX`或`\-XXX`\n";
+                $usage .= "\n*下发命令：*`下发XXX`或`\-XXX`";
+                $usage .= "\n*导出命令：*`/export`比如`/export 2022-2-22` 或 `/export`\n";
                 $usage .= "\n如果输入错误，可以用 `入款\-XXX` 或 `下发\-XXX`，来修正。";
                 $bot->sendMessage([
                     'chat_id' => $chat->id,
@@ -171,12 +115,11 @@ class HuntKeyBotController extends Controller
                 $chat = Chat::find($bot_update->chat->id);
                 if ( $chat ) {
                     $chat->users()->detach();
-                }
-
-                $shift = $this->getCurrentShift($chat->id);
-                if ( ! $shift ) {
-                    $shift->is_end = TRUE;
-                    $shift->save();
+                    $shift = $this->getCurrentShift($chat->id);
+                    if ( $shift ) {
+                        $shift->is_end = TRUE;
+                        $shift->save();
+                    }
                 }
             }
         } elseif ( hash_equals('chat_member', $update->objectType()) ) {
@@ -197,6 +140,74 @@ class HuntKeyBotController extends Controller
         }
     }
 
+    public function start($chat_id, $text = null)
+    {
+        $usage = "\n*使用说明*\n设置费率：`设置费率X\.X%`\n设置操作人：`设置操作人 @xxxxx` @xxxx 设置群成员使用。先打空格再打@，会弹出选择更方便，可能加多个。\n删除操作人：`删除操作人 @xxxxx` 先输入“删除操作人” 然后空格，再打@，就出来了选择，这样更方便，可能删除多个。\n";
+        $usage .= "\n*开始记录命令：*`开始`";
+        $usage .= "\n*结束记录命令：*`结束`";
+        $usage .= "\n*入款命令：*`入款XXX`或`\+XXX`";
+        $usage .= "\n*下发命令：*`下发XXX`或`\-XXX`";
+        $usage .= "\n*导出命令：*`/export`比如`/export 2022-2-22` 或 `/export`\n";
+        $usage .= "\n如果输入错误，可以用 `入款\-XXX` 或 `下发\-XXX`，来修正。";
+
+        $this->activeBot->sendMessage([
+            'chat_id' => $chat_id,
+            'text' => $usage,
+            'parse_mode' => 'MarkdownV2',
+        ]);
+    }
+
+    public function clear($chat_id, $text = null)
+    {
+        // DB::table('deposits')->truncate();
+        // DB::table('issueds')->truncate();
+
+        // DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        // DB::table('shifts')->truncate();
+        // DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+    }
+
+    public function export($chat_id, $text = null)
+    {
+        $date = date('Y-m-d');
+        $isMatch = preg_match('/^\/export\s*(?P<date>\d{4}-\d{1,2}-\d{1,2})/', $text, $matches);
+        if ( $isMatch == 1 ) {
+            $date = date_create_from_format('Y-m-d', $matches['date'])->format('Y-m-d');
+        }
+
+        $chat = Chat::findOrFail($chat_id);
+
+        $file_name = $chat->title . date_create_from_format('Y-m-d', $date)->format('Ymd') . '.xlsx';
+
+        $res = $this->activeBot->sendMessage([
+            'chat_id' => $chat->id,
+            'text' => '数据处理中，请稍等！'
+        ]);
+
+        Excel::store(new MultiSheetExport($date, $chat->id), $file_name, 'local');
+
+        if ( Storage::disk('local')->exists($file_name) ) {
+            $document = fopen(Storage::path($file_name), 'rb');
+            $this->activeBot->sendDocument([
+                'chat_id' => $chat->id,
+                'document' => $document,
+                'caption' => $chat->title . '完整账单',
+            ]);
+
+            $this->activeBot->deleteMessage([
+                'chat_id' => $chat->id,
+                'message_id' => $res->message_id
+            ]);
+
+            Storage::disk('local')->delete($file_name);
+        } else {
+            $this->activeBot->sendMessage([
+                'chat_id' => $chat->id,
+                'text' => '导出失败，请使用网页版再导出！'
+            ]);
+        }
+    }
+
     /**
      * User info handle
      * @param TeleUser $sender
@@ -204,26 +215,30 @@ class HuntKeyBotController extends Controller
      */
     public function senderHandle($sender, $chat_id)
     {
-        $key = 'huntkeybot_dummy_grant_' . $chat_id;
-        if ( Cache::has($key) && !empty(Cache::get($key)) ) {
-            $user = User::firstOrCreate(
-                ['id' => $sender->id],
-                [
-                    'username'   => $sender->get('username'),
-                    'first_name' => $sender->get('first_name'),
-                    'last_name'  => $sender->get('last_name'),
-                ],
-            );
-
-            $queues_grant = Cache::get($key);
-            if ( in_array($user->username, $queues_grant) ) {
-                Chat::find($chat_id)->users()->attach($user->id, ['role' => 'operator']);
-                $arr_key = array_search($user->username, $queues_grant);
-                if ( $arr_key !== false ) {
-                    unset($queues_grant[$arr_key]);
-                    Cache::forever($key, $queues_grant);
+        try {
+            $key = 'huntkeybot_dummy_grant_' . $chat_id;
+            if ( Cache::has($key) && !empty(Cache::get($key)) ) {
+                $user = User::firstOrCreate(
+                    ['id' => $sender->id],
+                    [
+                        'username'   => $sender->get('username'),
+                        'first_name' => $sender->get('first_name'),
+                        'last_name'  => $sender->get('last_name'),
+                    ],
+                );
+    
+                $queues_grant = Cache::get($key);
+                if ( in_array($user->username, $queues_grant) ) {
+                    Chat::find($chat_id)->users()->attach($user->id, ['role' => 'operator']);
+                    $arr_key = array_search($user->username, $queues_grant);
+                    if ( $arr_key !== false ) {
+                        unset($queues_grant[$arr_key]);
+                        Cache::forever($key, $queues_grant);
+                    }
                 }
             }
+        } catch (Exception $e) {
+            $this->reportBug("Line: ".$e->getLine()."\nMessage: ".$e->getMessage());
         }
     }
 
@@ -232,36 +247,36 @@ class HuntKeyBotController extends Controller
      * @param int $chat_id
      * @param int $user_id
      */
-    public function startRecords($chat_id, $user_id)
+    public function startRecords($chat_id, $user_id, ...$param)
     {
-        if ( $this->isAdmin($chat_id, $user_id) ) {
-            $shift = DB::table('shifts')
-                ->where('chat_id', $chat_id)
-                ->where('is_start', TRUE)
-                ->where('is_end', FALSE)
-                ->first();
-
-            if ( $shift ) {
-                $this->activeBot->sendMessage([
-                    'chat_id' => $chat_id,
-                    'text' => '机器人已开始记录今天账单。',
-                    'reply_to_message_id' => $this->activeMsgId
-                ]);
+        try {
+            if ( $this->isAdmin($chat_id, $user_id) ) {
+                $shift = DB::table('shifts')->where('chat_id', $chat_id)->where('is_start', TRUE)->where('is_end', FALSE)->latest()->first();
+    
+                if ( $shift ) {
+                    $this->activeBot->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => '机器人已开始记录今天账单。',
+                        'reply_to_message_id' => $this->activeMsgId
+                    ]);
+                } else {
+                    // Create new shift
+                    Chat::find($chat_id)->shifts()->create(['is_start'  => TRUE]);
+                    $this->activeBot->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => '开始记录今天账单。',
+                        'reply_to_message_id' => $this->activeMsgId
+                    ]);
+                }
             } else {
-                // Create new shift
-                Chat::find($chat_id)->shifts()->create(['is_start'  => TRUE]);
                 $this->activeBot->sendMessage([
                     'chat_id' => $chat_id,
-                    'text' => '开始记录今天账单。',
+                    'text' => '你没有权限啦。',
                     'reply_to_message_id' => $this->activeMsgId
                 ]);
             }
-        } else {
-            $this->activeBot->sendMessage([
-                'chat_id' => $chat_id,
-                'text' => '你没有权限啦。',
-                'reply_to_message_id' => $this->activeMsgId
-            ]);
+        } catch (Exception $e) {
+            $this->reportBug("Line: ".$e->getLine()."\nMessage: ".$e->getMessage());
         }
     }
 
@@ -270,35 +285,34 @@ class HuntKeyBotController extends Controller
      * @param int $chat_id
      * @param int $user_id
      */
-    public function stopRecords($chat_id, $user_id)
+    public function stopRecords($chat_id, $user_id, ...$param)
     {
-        if ( $this->isAdmin($chat_id, $user_id) ) {
-            $shift = DB::table('shifts')
-                ->where('chat_id', $chat_id)
-                ->where('is_start', TRUE)
-                ->where('is_end', FALSE)
-                ->first();
-
-            if ( $shift ) {
-                Shift::find($shift->id)->update(['is_end' => TRUE]);
-                $this->activeBot->sendMessage([
-                    'chat_id' => $chat_id,
-                    'text' => '结束记录。',
-                    'reply_to_message_id' => $this->activeMsgId
-                ]);
+        try {
+            if ( $this->isAdmin($chat_id, $user_id) ) {
+                $affected_row = DB::table('shifts')->where('chat_id', $chat_id)->where('is_start', TRUE)->where('is_end', FALSE)->update(['is_end' => TRUE]);
+    
+                if ( $affected_row > 0 ) {
+                    $this->activeBot->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => '结束记录。',
+                        'reply_to_message_id' => $this->activeMsgId
+                    ]);
+                } else {
+                    $this->activeBot->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => '记录今天账单还没开始，输入”开始”机器人会开始记录。',
+                        'reply_to_message_id' => $this->activeMsgId
+                    ]);
+                }
             } else {
                 $this->activeBot->sendMessage([
                     'chat_id' => $chat_id,
-                    'text' => '记录今天账单还没开始，输入”开始”机器人会开始记录。',
+                    'text' => '你没有权限啦。',
                     'reply_to_message_id' => $this->activeMsgId
                 ]);
             }
-        } else {
-            $this->activeBot->sendMessage([
-                'chat_id' => $chat_id,
-                'text' => '你没有权限啦。',
-                'reply_to_message_id' => $this->activeMsgId
-            ]);
+        } catch (Exception $e) {
+            $this->reportBug("Line: ".$e->getLine()."\nMessage: ".$e->getMessage());
         }
     }
 
@@ -308,33 +322,37 @@ class HuntKeyBotController extends Controller
      * @param int $user_id
      * @param float $rate
      */
-    public function rateHandle($chat_id, $user_id, $rate)
+    public function rateHandle($chat_id, $user_id, $matches, ...$param)
     {
-        if ( $this->isAdmin($chat_id, $user_id) ) {
-            $shift = $this->getCurrentShift($chat_id);
-
-            if ( $shift ) {
-                $shift->rate = floatval($rate);
-                $shift->save();
-
-                $this->activeBot->sendMessage([
-                    'chat_id' => $chat_id,
-                    'text' => '设置成功！',
-                    'reply_to_message_id' => $this->activeMsgId
-                ]);
+        try {
+            if ( $this->isAdmin($chat_id, $user_id) ) {
+                $shift = $this->getCurrentShift($chat_id);
+    
+                if ( $shift ) {
+                    $shift->rate = floatval($matches['rate']);
+                    $shift->save();
+    
+                    $this->activeBot->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => '设置成功！费率是' . $shift->rate,
+                        'reply_to_message_id' => $this->activeMsgId
+                    ]);
+                } else {
+                    $this->activeBot->sendMessage([
+                        'chat_id' => $chat_id,
+                        'text' => '记录今天账单还没开始，请输入”开始”机器人会开始记录。',
+                        'reply_to_message_id' => $this->activeMsgId
+                    ]);
+                }
             } else {
                 $this->activeBot->sendMessage([
                     'chat_id' => $chat_id,
-                    'text' => '记录今天账单还没开始，请输入”开始”机器人会开始记录。',
+                    'text' => '你没有权限啦。',
                     'reply_to_message_id' => $this->activeMsgId
                 ]);
             }
-        } else {
-            $this->activeBot->sendMessage([
-                'chat_id' => $chat_id,
-                'text' => '你没有权限啦。',
-                'reply_to_message_id' => $this->activeMsgId
-            ]);
+        } catch (Exception $e) {
+            $this->reportBug("Line: ".$e->getLine()."\nMessage: ".$e->getMessage());
         }
     }
 
@@ -344,29 +362,33 @@ class HuntKeyBotController extends Controller
      * @param int $user_id
      * @param float $amount
      */
-    public function depositHandle($chat_id, $user_id, $amount)
+    public function depositHandle($chat_id, $user_id, $matches, ...$param)
     {
-        if ( $this->isOperator($chat_id, $user_id) ) {
-            $shift = $this->getCurrentShift($chat_id);
-
-            if ( $shift ) {
-                DB::table('deposits')->insert([
-                    'user_id' => $user_id,
-                    'shift_id' => $shift->id,
-                    'gross' => $amount,
-                    'net' => floatval($amount) * (1 - ($shift->rate / 100)),
-                    'created_at' => date('Y-m-d H:i:s', time()),
-                    'updated_at' => date('Y-m-d H:i:s', time()),
+        try {
+            if ( $this->isOperator($chat_id, $user_id) ) {
+                $shift = $this->getCurrentShift($chat_id);
+    
+                if ( $shift ) {
+                    DB::table('deposits')->insert([
+                        'user_id' => $user_id,
+                        'shift_id' => $shift->id,
+                        'gross' => $matches['amount'],
+                        'net' => floatval($matches['amount']) * (1 - ($shift->rate / 100)),
+                        'created_at' => date('Y-m-d H:i:s', time()),
+                        'updated_at' => date('Y-m-d H:i:s', time()),
+                    ]);
+    
+                    $this->statisticHandle($shift->id, $chat_id);
+                }
+            } else {
+                $this->activeBot->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "你没有权限啦，请跟管理员申请操作人的权限！",
+                    'reply_to_message_id' => $this->activeMsgId
                 ]);
-
-                $this->statisticHandle($shift->id, $chat_id);
             }
-        } else {
-            $this->activeBot->sendMessage([
-                'chat_id' => $chat_id,
-                'text' => "你没有权限啦，请跟管理员申请操作人的权限！",
-                'reply_to_message_id' => $this->activeMsgId
-            ]);
+        } catch (Exception $e) {
+            $this->reportBug("Line: ".$e->getLine()."\nMessage: ".$e->getMessage());
         }
     }
 
@@ -376,28 +398,32 @@ class HuntKeyBotController extends Controller
      * @param int $user_id
      * @param float $amount
      */
-    public function issuedHandle($chat_id, $user_id, $amount)
+    public function issuedHandle($chat_id, $user_id, $matches, ...$param)
     {
-        if ( $this->isOperator($chat_id, $user_id) ) {
-            $shift = $this->getCurrentShift($chat_id);
-
-            if ( $shift ) {
-                DB::table('issueds')->insert([
-                    'user_id' => $user_id,
-                    'shift_id' => $shift->id,
-                    'amount' => $amount,
-                    'created_at' => date('Y-m-d H:i:s', time()),
-                    'updated_at' => date('Y-m-d H:i:s', time()),
+        try {
+            if ( $this->isOperator($chat_id, $user_id) ) {
+                $shift = $this->getCurrentShift($chat_id);
+    
+                if ( $shift ) {
+                    DB::table('issueds')->insert([
+                        'user_id' => $user_id,
+                        'shift_id' => $shift->id,
+                        'amount' => $matches['amount'],
+                        'created_at' => date('Y-m-d H:i:s', time()),
+                        'updated_at' => date('Y-m-d H:i:s', time()),
+                    ]);
+    
+                    $this->statisticHandle($shift->id, $chat_id);
+                }
+            } else {
+                $this->activeBot->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => "你没有权限啦，请跟管理员申请操作人的权限！",
+                    'reply_to_message_id' => $this->activeMsgId
                 ]);
-
-                $this->statisticHandle($shift->id, $chat_id);
             }
-        } else {
-            $this->activeBot->sendMessage([
-                'chat_id' => $chat_id,
-                'text' => "你没有权限啦，请跟管理员申请操作人的权限！",
-                'reply_to_message_id' => $this->activeMsgId
-            ]);
+        } catch (Exception $e) {
+            $this->reportBug("Line: ".$e->getLine()."\nMessage: ".$e->getMessage());
         }
     }
 
@@ -408,47 +434,51 @@ class HuntKeyBotController extends Controller
      */
     public function statisticHandle($shift_id, $chat_id)
     {
-        $shift = Shift::find($shift_id);
-
-        if ( $shift ) {
-            $deposits = DB::table('deposits')->where('shift_id', $shift->id)
-                ->join('users', 'deposits.user_id', '=', 'users.id')
-                ->orderByDesc('created_at');
-            $issueds = DB::table('issueds')->where('shift_id', $shift->id)
-                ->join('users', 'issueds.user_id', '=', 'users.id')
-                ->orderByDesc('created_at');
-
-            $content = "*入款（". $deposits->count() ."笔）*\n";
-            foreach ( $deposits->take(4)->get() as $deposit ) {
-                $created_at = date_create_from_format('Y-m-d H:i:s', $deposit->created_at);
-                $created_at = $created_at->format('H:i:s');
-                $content .= "`{$deposit->first_name} {$created_at}`：*{$deposit->gross}*\n";
+        try {
+            $shift = Shift::find($shift_id);
+    
+            if ( $shift ) {
+                $deposits = DB::table('deposits')->where('shift_id', $shift->id)
+                    ->join('users', 'deposits.user_id', '=', 'users.id')
+                    ->orderByDesc('created_at');
+                $issueds = DB::table('issueds')->where('shift_id', $shift->id)
+                    ->join('users', 'issueds.user_id', '=', 'users.id')
+                    ->orderByDesc('created_at');
+    
+                $content = "*入款（". $deposits->count() ."笔）*\n";
+                foreach ( $deposits->take(4)->get() as $deposit ) {
+                    $created_at = date_create_from_format('Y-m-d H:i:s', $deposit->created_at);
+                    $created_at = $created_at->format('H:i:s');
+                    $content .= "`{$deposit->first_name} {$created_at}`：*{$deposit->gross}*\n";
+                }
+                $content .= "*下发（". $issueds->count() ."笔）*\n";
+                foreach ( $issueds->take(4)->get() as $issued ) {
+                    $created_at = date_create_from_format('Y-m-d H:i:s', $deposit->created_at);
+                    $created_at = $created_at->format('H:i:s');
+                    $content .= "`{$issued->first_name} {$created_at}` ：*{$issued->amount}*\n";
+                }
+    
+                $content .= "*总入款：*". $deposits->sum('gross') ."\n";
+                $content .= "*费率：*". $shift->rate ."%\n";
+                $content .= "*应下发：*" . $deposits->sum('net') . "\n";
+                $content .= "*总下发：*". $issueds->sum('amount') ."\n";
+                $content .= "*未下发：*" . ($deposits->sum('net') - $issueds->sum('amount'));
+    
+                $content = str_replace([".", "-"], ["\.", "\-"], $content);
+    
+                $this->activeBot->sendMessage([
+                    'chat_id' => $chat_id,
+                    'text' => $content,
+                    'parse_mode' => 'MarkdownV2',
+                    'reply_markup' => (new InlineKeyboardMarkup())
+                        ->row(new InlineKeyboardButton([
+                            'text' => "📝点击跳转完整账单",
+                            'url' => route('telegram.chats.index', ['chat_id' => $chat_id]),
+                        ])),
+                ]);
             }
-            $content .= "*下发（". $issueds->count() ."笔）*\n";
-            foreach ( $issueds->take(4)->get() as $issued ) {
-                $created_at = date_create_from_format('Y-m-d H:i:s', $deposit->created_at);
-                $created_at = $created_at->format('H:i:s');
-                $content .= "`{$issued->first_name} {$created_at}` ：*{$issued->amount}*\n";
-            }
-
-            $content .= "*总入款：*". $deposits->sum('gross') ."\n";
-            $content .= "*费率：*". $shift->rate ."%\n";
-            $content .= "*应下发：*" . $deposits->sum('net') . "\n";
-            $content .= "*总下发：*". $issueds->sum('amount') ."\n";
-            $content .= "*未下发：*" . ($deposits->sum('net') - $issueds->sum('amount'));
-
-            $content = str_replace([".", "-"], ["\.", "\-"], $content);
-
-            $this->activeBot->sendMessage([
-                'chat_id' => $chat_id,
-                'text' => $content,
-                'parse_mode' => 'MarkdownV2',
-                'reply_markup' => (new InlineKeyboardMarkup())
-                    ->row(new InlineKeyboardButton([
-                        'text' => "📝点击跳转完整账单",
-                        'url' => route('telegram.chats.index', ['chat_id' => $chat_id]),
-                    ])),
-            ]);
+        } catch (Exception $e) {
+            $this->reportBug("Line: ".$e->getLine()."\nMessage: ".$e->getMessage());
         }
     }
 
@@ -477,50 +507,85 @@ class HuntKeyBotController extends Controller
     /**
      * Grant operator role to user
      * @param int $chat_id
-     * @param TeleUser|string $user
-     * @param boolean $dummy
+     * @param int $user_id
+     * @param mix|null $matches
+     * @param mix $entities
+     * @param string $text
      */
-    public function grantRoles($chat_id, $user, $dummy = false)
+    public function grantRoles($chat_id, $user_id, $matches = null, $entities, $text)
     {
-        $chat = Chat::find($chat_id);
+        try {
+            $chat = Chat::findOrFail($chat_id);
+    
+            if ( $this->isAdmin($chat_id, $user_id) ) {
+    
+                foreach ($entities as $entity) {
+                    if ( hash_equals('text_mention', $entity->type) ) {
+    
+                        $user = new TeleUser($entity->user);
+                        $operator = User::firstOrCreate(
+                            ['id' => $user->get('id')],
+                            [
+                                'first_name' => $user->get('first_name'),
+                                'last_name' => $user->get('last_name'),
+                            ],
+                        );
+                        if ( $this->isAdmin($chat->id, $operator->id) ) {
+                            continue;
+                        }
+    
+                        $chat->users()->detach($operator->id);
+                        $chat->users()->attach($operator->id, ['role' => 'operator']);
+    
+                    } elseif ( hash_equals('mention', $entity->type) ) {
+                        $username = mb_substr( $text, $entity->offset, $entity->length, 'UTF-8' );
+                        $username = ltrim($username, '@');
+    
+                        $key = 'huntkeybot_dummy_grant_' . $chat->id;
+                        Cache::put('huntkey_username', ['key' => $key, 'value' => $username]);
+    
+                        $operator = User::where('username', '=', $username)->firstOr(function() {
+                            $data = Cache::get('huntkey_username');
+                            if ( Cache::has($data['key']) ) {
 
-        if ( $chat ) {
-            if ($dummy) {
-                $record = User::where('username', '=', $user)->first();
-                if ( $record && ! $this->isAdmin($chat->id, $record->id) ) {
-
-                    $chat->users()->attach($record->id, ['role' => 'operator']);
-
-                } else {
-                    $key = 'huntkeybot_dummy_grant_' . $chat->id;
-                    if ( Cache::has($key) ) {
-                        $value = Cache::get($key);
-                        array_push($value, $user);
-                        Cache::forever($key, $value);
-                    } else {
-                        Cache::forever($key, [$user]);
+                                $grant_dummy = Cache::get($data['key']);
+                                array_push($grant_dummy, $data['value']);
+                                Cache::forever($data['key'], $grant_dummy);
+    
+                            } else {
+                                Cache::forever($data['key'], [$data['value']]);
+                            }
+                            return array();
+                        });
+    
+                        Cache::forget('huntkey_username');
+    
+                        if ( $operator ) {
+                            if ( $this->isAdmin($chat->id, $operator->id) ) {
+                                continue;
+                            }
+        
+                            $chat->users()->detach($operator->id);
+                            $chat->users()->attach($operator->id, ['role' => 'operator']);
+                        }
                     }
                 }
+    
+                $this->activeBot->sendMessage([
+                    'chat_id' => $chat->id,
+                    'text' => '设置操作人成功！',
+                    'reply_to_message_id' => $this->activeMsgId,
+                ]);
+    
             } else {
-                $record = User::firstOrCreate(
-                    ['id' => $user->id],
-                    [
-                        'username' => $user->get('username'),
-                        'first_name' => $user->get('first_name'),
-                        'last_name' => $user->get('last_name')
-                    ],
-                );
-                if ( $this->isAdmin($chat->id, $record->id) ) {
-                    $this->activeBot->sendMessage([
-                        'chat_id' => $chat->id,
-                        'text' => "“".$record->first_name."”已经是管理员了，不要授予操作权限！",
-                        'reply_to_message_id' => $this->activeMsgId
-                    ]);
-                } else {
-                    $chat->users()->detach($record->id);
-                    $chat->users()->attach($record->id, ['role' => 'operator']);
-                }
+                $this->activeBot->sendMessage([
+                    'chat_id' => $chat->id,
+                    'text' => '您没有权限啦。',
+                    'reply_to_message_id' => $this->activeMsgId,
+                ]);
             }
+        } catch (Exception $e) {
+            $this->reportBug("Line: ".$e->getLine()."\nMessage: ".$e->getMessage());
         }
     }
 
@@ -528,46 +593,88 @@ class HuntKeyBotController extends Controller
      * Revoke operator role from user
      * @param int $chat_id
      * @param int|string $user
-     * @param boolean $dummy
+     * @param mix|null $matches
+     * @param mix $entities
+     * @param string $text
      */
-    public function revokeRoles($chat_id, $user, $dummy = false)
+    public function revokeRoles($chat_id, $user_id, $matches = null, $entities, $text)
     {
-        $chat = Chat::find($chat_id);
-
-        if ( $chat ) {
-            if ($dummy) {
-                $record = User::where('username', '=', $user)->first();
-                if ( $record ) {
-                    $chat->users()->detach($record->id);
-                } else {
-                    $key = 'huntkeybot_dummy_grant_' . $chat->id;
-                    if ( Cache::has($key) ) {
-                        $value = Cache::get($key);
-                        $arr_key = array_search($user, $value);
-                        if ( $arr_key !== false ) {
-                            unset($value[$arr_key]);
-                            Cache::forever($key, $value);
+        try {
+            $chat = Chat::findOrFail($chat_id);
+    
+            if ( $this->isAdmin($chat->id, $user_id) ) {
+    
+                $admins_count = DB::table('chat_user')->where('chat_id', $chat->id)->where('role', 'admin')->count();
+    
+                foreach ($entities as $entity) {
+                    if ( hash_equals('text_mention', $entity->type) ) {
+    
+                        $user = new TeleUser($entity->user);
+                        $operator = User::firstOrCreate(
+                            ['id' => $user->get('id')],
+                            [
+                                'first_name' => $user->get('first_name'),
+                                'last_name' => $user->get('last_name'),
+                            ],
+                        );
+    
+                        if ( $this->isAdmin($chat->id, $operator->id) && $admins_count == 1 ) {
+                            continue;
                         }
-                    } else {
-                        $this->activeBot->sendMessage([
-                            'chat_id' => $chat->id,
-                            'text' => "“" . $user . "”本来不是操作人，不要删除操作的权限！",
-                            'reply_to_message_id' => $this->activeMsgId
-                        ]);
+    
+                        $chat->users()->detach($operator->id);
+    
+                    } elseif ( hash_equals('mention', $entity->type) ) {
+                        
+                        $username = mb_substr( $text, $entity->offset, $entity->length, 'UTF-8' );
+                        $username = ltrim($username, '@');
+    
+                        $key = 'huntkeybot_dummy_grant_' . $chat->id;
+                        Cache::put('huntkey_username', ['key' => $key, 'value' => $username]);
+    
+                        $operator = User::where('username', '=', $username)->firstOr(function() {
+                            $data = Cache::get('huntkey_username');
+    
+                            if ( Cache::has($data['key']) ) {
+                                $grant_dummy = Cache::get($data['key']);
+                                $arr_key = array_search($data['value'], $grant_dummy);
+                                
+                                if ( $arr_key !== false ) {
+                                    unset($grant_dummy[$arr_key]);
+                                    Cache::forever($data['key'], $grant_dummy);
+                                }
+                            }
+    
+                            return array();
+                        });
+    
+                        Cache::forget('huntkey_username');
+    
+                        if ( $operator ) {
+                            if ( $this->isAdmin($chat->id, $operator->id) && $admins_count == 1 ) {
+                                continue;
+                            }
+    
+                            $chat->users()->detach($operator->id);
+                        }
                     }
                 }
+    
+                $this->activeBot->sendMessage([
+                    'chat_id' => $chat->id,
+                    'text' => '删除操作人成功！',
+                    'reply_to_message_id' => $this->activeMsgId,
+                ]);
+    
             } else {
-                $admins_count = DB::table('chat_user')->where('chat_id', $chat->id)->where('role', 'admin')->count();
-                if ( $this->isAdmin($chat->id, $user) && $admins_count == 1 ) {
-                    $this->activeBot->sendMessage([
-                        'chat_id' => $chat->id,
-                        'text' => "删除失败，最少需要群里有一个管理员！",
-                        'reply_to_message_id' => $this->activeMsgId
-                    ]);
-                    return;
-                }
-                $chat->users()->detach($user);
+                $this->activeBot->sendMessage([
+                    'chat_id' => $chat->id,
+                    'text' => '您没有权限啦。',
+                    'reply_to_message_id' => $this->activeMsgId,
+                ]);
             }
+        } catch (Exception $e) {
+            $this->reportBug("Line: ".$e->getLine()."\nMessage: ".$e->getMessage());
         }
     }
 
@@ -577,12 +684,8 @@ class HuntKeyBotController extends Controller
      */
     public function getCurrentShift($chat_id)
     {
-        $shift = Shift::where([
-            ['chat_id', $chat_id],
-            ['is_start', TRUE],
-            ['is_end', FALSE],
-        ])->first();
-        return is_null($shift) ? null : $shift;
+        $shift = Shift::where('chat_id', $chat_id)->where('is_start', TRUE)->where('is_end', FALSE)->latest()->first();
+        return $shift;
     }
 
     /**

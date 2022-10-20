@@ -64,7 +64,7 @@ class TransactionController extends Controller
             'count_issued' => $issueds->count(),
             'deposits' => $deposits->paginate(25, ['*'], 'depositPage')->withPath($param),
             'issueds' => $issueds->paginate(25, ['*'], 'issuedPage')->withPath($param),
-            'chat_id' => $chat_id,
+            'chat' => $chat,
             'deposit_gross' => $deposit_total_gross,
             'deposit_net' => $deposit_total_net,
             'sum_issued' => $sum_issued,

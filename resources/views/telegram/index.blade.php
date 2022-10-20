@@ -11,7 +11,7 @@
 <body>
     <nav class="container bg-gray-50 border-gray-200 px-2 sm:px-4 py-2 rounded dark:bg-gray-900 mx-auto">
         <div class="flex flex-wrap justify-between items-center mx-auto">
-            <p class="text-orange-400 font-extrabold my-auto">群组飞机群 {{$chat_id}}</p>
+            <p class="text-orange-400 font-extrabold my-auto">{{$chat->title}} {{$chat->id}}</p>
             <div class="w-full md:block md:w-auto " id="navbar-default">
                 <ul class="flex flex-col p-2 mt-4 bg-gray-50 rounded-lg border border-gray-100 md:flex-row md:space-x-4 md:mt-0 md:text-sm md:font-medium md:border-0 md:bg-white dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">
                     <li>
@@ -26,7 +26,7 @@
                         </div>
                     </li>
                     <li>
-                        <a  type="button" class="data-export-btn focus:outline-none text-white bg-yellow-400 hover:bg-yellow-500 focus:ring-4 focus:ring-yellow-300 font-medium rounded-lg text-sm px-5 py-2 dark:focus:ring-yellow-900">导出</a>
+                        <a target="_blank" type="button" class="data-export-btn focus:outline-none text-white bg-yellow-400 hover:bg-yellow-500 focus:ring-4 focus:ring-yellow-300 font-medium rounded-lg text-sm px-5 py-2 dark:focus:ring-yellow-900">导出</a>
                     </li>
                 </ul>
             </div>
@@ -122,7 +122,7 @@
             if (typeof exportBtn !== "undefined") {
                 exportBtn.addEventListener("mouseover", function (e) {
                     var date = "{{ $date }}";
-                    var url = "<?php echo route('telegram.chats.export', ['chat_id' => $chat_id]) ?>";
+                    var url = "<?php echo route('telegram.chats.export', ['chat_id' => $chat->id]) ?>";
                     exportBtn.setAttribute("href", url + "?date=" + date);
                 });
             }

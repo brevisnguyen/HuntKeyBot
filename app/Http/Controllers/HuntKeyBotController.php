@@ -23,6 +23,7 @@ class HuntKeyBotController extends Controller
 {
     protected $activeBot;
     protected $activeMsgId;
+    protected $activeChatId;
     /**
      * Handle the incoming request.
      *
@@ -41,6 +42,8 @@ class HuntKeyBotController extends Controller
             $from = $message->get('from');
             $text = $message->get('text');
             $entities = $message->get('entities');
+
+            $this->activeChatId = $chat->id;
 
             if ( $message->has('entities') && str_starts_with($text, '/') ) {
                 foreach ( $entities as $entity ) {
@@ -175,7 +178,12 @@ class HuntKeyBotController extends Controller
             $date = date_create_from_format('Y-m-d', $matches['date'])->format('Y-m-d');
         }
 
-        $chat = Chat::findOrFail($chat_id);
+        try {
+            $chat = Chat::findOrFail($chat_id);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            $this->reportBug($e->getMessage());
+            return;
+        }
 
         $file_name = $chat->title . date_create_from_format('Y-m-d', $date)->format('Ymd') . '.xlsx';
 
@@ -453,7 +461,7 @@ class HuntKeyBotController extends Controller
                 }
                 $content .= "*下发（". $issueds->count() ."笔）*\n";
                 foreach ( $issueds->take(4)->get() as $issued ) {
-                    $created_at = date_create_from_format('Y-m-d H:i:s', $deposit->created_at);
+                    $created_at = date_create_from_format('Y-m-d H:i:s', $issued->created_at);
                     $created_at = $created_at->format('H:i:s');
                     $content .= "`{$issued->first_name} {$created_at}` ：*{$issued->amount}*\n";
                 }
@@ -694,7 +702,7 @@ class HuntKeyBotController extends Controller
     public function reportBug($message)
     {
         Telegram::bot()->sendMessage([
-            'chat_id' => 5192927761,
+            'chat_id' => $this->activeChatId,
             'text' => $message,
         ]);
     }
